@@ -1,6 +1,6 @@
 #version 150
 
-uniform float n;
+uniform uint n;
 
 in float v;
 

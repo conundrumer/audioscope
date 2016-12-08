@@ -64,7 +64,10 @@ fn display() {
             .collect();
         ys.write(&next_ys);
 
-        let uniforms = uniform! { n: n as f32 };
+        let window = display.get_window().unwrap();
+        let (width, height) = window.get_inner_size_points().unwrap();
+
+        let uniforms = uniform! { n: n as u32, w: width, h: height };
         let mut target = display.draw();
         target.clear_color(0.0, 0.0, 0.0, 1.0);
         target.draw(&ys, &indices, &program, &uniforms, &params).unwrap();
