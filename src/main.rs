@@ -2,16 +2,10 @@
 extern crate glium;
 
 #[derive(Copy, Clone)]
-struct ScalarX {
-    x: f32
+struct Scalar {
+    v: f32
 }
-implement_vertex!(ScalarX, x);
-
-#[derive(Copy, Clone)]
-struct ScalarY {
-    y: f32
-}
-implement_vertex!(ScalarY, y);
+implement_vertex!(Scalar, v);
 
 fn load_from_file(filename: &str) -> String {
     use std::io::prelude::*;
@@ -49,9 +43,7 @@ fn display() {
         .build_glium().unwrap();
 
     let n = 4096;
-    let xs_data: Vec<_> = (0..n).map(|i: u32| ScalarX { x: (2.0 * i as f32 / ((n as f32) - 1.0)) - 1.0,}).collect();
-    let ys_data: Vec<_> = (0..n).map(|_| ScalarY { y: 0.0 }).collect();
-    let xs = VertexBuffer::dynamic(&display, &xs_data).unwrap();
+    let ys_data: Vec<_> = (0..n).map(|_| Scalar { v: 0.0 }).collect();
     let ys = VertexBuffer::dynamic(&display, &ys_data).unwrap();
     let indices = NoIndices(PrimitiveType::LineStrip);
     let v_shader = load_from_file("src/vert.glsl");
@@ -68,14 +60,14 @@ fn display() {
         // would normalyl pass in a buffer instead of generating a new vector every time
         let next_ys: Vec<_> = (0..n)
             .map(|i: u32| (i as f32) / (n as f32))
-            .map(|x| ScalarY { y: ((x * std::f32::consts::PI).sin()) * ((k * x).exp() + t).sin() })
+            .map(|x| Scalar { v: ((x * std::f32::consts::PI).sin()) * ((k * x).exp() + t).sin() })
             .collect();
         ys.write(&next_ys);
 
-        let uniforms = uniform! {};
+        let uniforms = uniform! { n: n as f32 };
         let mut target = display.draw();
         target.clear_color(0.0, 0.0, 0.0, 1.0);
-        target.draw((&xs, &ys), &indices, &program, &uniforms, &params).unwrap();
+        target.draw(&ys, &indices, &program, &uniforms, &params).unwrap();
         target.finish().unwrap();
         for ev in display.poll_events() {
             match ev {
