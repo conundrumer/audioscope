@@ -42,18 +42,19 @@ fn display() {
         .with_vsync()
         .build_glium().unwrap();
 
-    let n = 4096;
+    let n = 64;
     let ys_data: Vec<_> = (0..n).map(|_| Scalar { v: 0.0 }).collect();
     let ys = VertexBuffer::dynamic(&display, &ys_data).unwrap();
-    let indices = NoIndices(PrimitiveType::LineStrip);
+    let indices = NoIndices(PrimitiveType::LineStripAdjacency);
     let v_shader = load_from_file("src/line.vert");
     let h_shader = load_from_file("src/line.frag");
-    let program = Program::from_source(&display, &v_shader, &h_shader, None).unwrap();
+    let g_shader = load_from_file("src/line.geom");
+    let program = Program::from_source(&display, &v_shader, &h_shader, Some(&g_shader)).unwrap();
 
     let params = DrawParameters {.. Default::default() };
 
-    let mut t: f32 = -0.5;
-    let dt = 0.2;
+    let mut t: f32 = 0.0;
+    let dt = 0.02;
     let k = 3.5;
     loop {
         t += dt;
@@ -67,7 +68,7 @@ fn display() {
         let window = display.get_window().unwrap();
         let (width, height) = window.get_inner_size_points().unwrap();
 
-        let uniforms = uniform! { n: n as u32, w: width, h: height };
+        let uniforms = uniform! { n: n as u32, window: [width as f32, height as f32] };
         let mut target = display.draw();
         target.clear_color(0.0, 0.0, 0.0, 1.0);
         target.draw(&ys, &indices, &program, &uniforms, &params).unwrap();
