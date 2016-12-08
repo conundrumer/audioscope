@@ -46,8 +46,8 @@ fn display() {
     let ys_data: Vec<_> = (0..n).map(|_| Scalar { v: 0.0 }).collect();
     let ys = VertexBuffer::dynamic(&display, &ys_data).unwrap();
     let indices = NoIndices(PrimitiveType::LineStrip);
-    let v_shader = load_from_file("src/vert.glsl");
-    let h_shader = load_from_file("src/frag.glsl");
+    let v_shader = load_from_file("src/line.vert");
+    let h_shader = load_from_file("src/line.frag");
     let program = Program::from_source(&display, &v_shader, &h_shader, None).unwrap();
 
     let params = DrawParameters {.. Default::default() };
