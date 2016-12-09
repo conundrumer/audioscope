@@ -4,7 +4,7 @@ uniform uint n;
 uniform bool colorize;
 uniform float base_hue;
 
-in float dist;
+in float relative_length;
 
 out vec4 color;
 
@@ -17,7 +17,9 @@ vec3 hsv2rgb(vec3 c) {
 
 void main() {
     if (colorize) {
-        color = vec4(hsv2rgb(vec3(base_hue + log2(dist), 1.0, 1.0)), 1.0);
+        // increase/decrease length by factor of 2 (an octave) -> same hue
+        float phase = log2(relative_length);
+        color = vec4(hsv2rgb(vec3(base_hue + phase, 1.0, 1.0)), 1.0);
     } else {
         color = vec4(hsv2rgb(vec3(base_hue, 1.0, 1.0)), 1.0);
     }
