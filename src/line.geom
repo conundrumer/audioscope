@@ -8,6 +8,8 @@ uniform float thinning;
 layout(lines_adjacency) in;
 layout(triangle_strip, max_vertices = 5 ) out;
 
+out float dist;
+
 // heavily based on paul houx's miter polylines
 // https://github.com/paulhoux/Cinder-Samples/blob/master/GeometryShader/assets/shaders/lines2.geom
 void main() {
@@ -31,8 +33,8 @@ void main() {
     vec2 miter_a = normalize( n0 + n1 );    // miter at start of current segment
     vec2 miter_b = normalize( n1 + n2 );    // miter at end of current segment
 
-    float dist_a = distance(gl_in[1].gl_Position.xy, gl_in[2].gl_Position.xy);
-    float dist_b = distance(gl_in[2].gl_Position.xy, gl_in[3].gl_Position.xy);
+    float dist_a = distance(gl_in[0].gl_Position.xy, gl_in[1].gl_Position.xy);
+    float dist_b = distance(gl_in[1].gl_Position.xy, gl_in[2].gl_Position.xy);
 
     float thickness_adjusted = thickness * mix(1.0, 4.0, thinning);
     float thickness_a = min(thickness, thickness_adjusted / mix(1.0, (n * dist_a), thinning));
@@ -42,6 +44,7 @@ void main() {
     float length_a = thickness_a / dot( miter_a, n1 );
     float length_b = thickness_b / dot( miter_b, n1 );
 
+    dist = dist_a;
     if( dot( v0, n1 ) > 0 ) {
         // start at negative miter
         gl_Position = vec4( ( p1 - length_a * miter_a ) / window, 0.0, 1.0 );
@@ -60,6 +63,7 @@ void main() {
         EmitVertex();
     }
 
+    dist = dist_b;
     if( dot( v2, n1 ) < 0 ) {
         // proceed to negative miter
         gl_Position = vec4( ( p2 - length_b * miter_b ) / window, 0.0, 1.0 );

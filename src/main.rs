@@ -73,6 +73,8 @@ fn display() {
             window: [width as f32, height as f32],
             thickness: 4.0 as f32,
             thinning: 1.0 as f32,
+            base_hue: (1.0 / 3.0) as f32,
+            colorize: true,
         };
         let mut target = display.draw();
         target.clear_color(0.0, 0.0, 0.0, 1.0);
