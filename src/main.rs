@@ -42,7 +42,7 @@ fn display() {
         .with_vsync()
         .build_glium().unwrap();
 
-    let n = 64;
+    let n = 1024;
     let ys_data: Vec<_> = (0..n).map(|_| Scalar { v: 0.0 }).collect();
     let ys = VertexBuffer::dynamic(&display, &ys_data).unwrap();
     let indices = NoIndices(PrimitiveType::LineStripAdjacency);
@@ -72,6 +72,7 @@ fn display() {
             n: n as u32,
             window: [width as f32, height as f32],
             thickness: 4.0 as f32,
+            thinning: 1.0 as f32,
         };
         let mut target = display.draw();
         target.clear_color(0.0, 0.0, 0.0, 1.0);

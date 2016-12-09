@@ -1,7 +1,9 @@
 #version 150
 
+uniform uint n;
 uniform vec2 window;
 uniform float thickness;
+uniform float thinning;
 
 layout(lines_adjacency) in;
 layout(triangle_strip, max_vertices = 5 ) out;
@@ -29,9 +31,16 @@ void main() {
     vec2 miter_a = normalize( n0 + n1 );    // miter at start of current segment
     vec2 miter_b = normalize( n1 + n2 );    // miter at end of current segment
 
+    float dist_a = distance(gl_in[1].gl_Position.xy, gl_in[2].gl_Position.xy);
+    float dist_b = distance(gl_in[2].gl_Position.xy, gl_in[3].gl_Position.xy);
+
+    float thickness_adjusted = thickness * mix(1.0, 4.0, thinning);
+    float thickness_a = min(thickness, thickness_adjusted / mix(1.0, (n * dist_a), thinning));
+    float thickness_b = min(thickness, thickness_adjusted / mix(1.0, (n * dist_b), thinning));
+
     // determine the length of the miter by projecting it onto normal and then inverse it
-    float length_a = thickness / dot( miter_a, n1 );
-    float length_b = thickness / dot( miter_b, n1 );
+    float length_a = thickness_a / dot( miter_a, n1 );
+    float length_b = thickness_b / dot( miter_b, n1 );
 
     if( dot( v0, n1 ) > 0 ) {
         // start at negative miter
@@ -39,11 +48,11 @@ void main() {
         EmitVertex();
 
         // proceed to positive normal
-        gl_Position = vec4( ( p1 + thickness * n1 ) / window, 0.0, 1.0 );
+        gl_Position = vec4( ( p1 + thickness_a * n1 ) / window, 0.0, 1.0 );
         EmitVertex();
     } else {
         // start at negative normal
-        gl_Position = vec4( ( p1 - thickness * n1 ) / window, 0.0, 1.0 );
+        gl_Position = vec4( ( p1 - thickness_a * n1 ) / window, 0.0, 1.0 );
         EmitVertex();
 
         // proceed to positive miter
@@ -57,16 +66,16 @@ void main() {
         EmitVertex();
 
         // proceed to positive normal
-        gl_Position = vec4( ( p2 + thickness * n1 ) / window, 0.0, 1.0 );
+        gl_Position = vec4( ( p2 + thickness_b * n1 ) / window, 0.0, 1.0 );
         EmitVertex();
 
         // end at positive normal
-        gl_Position = vec4( ( p2 + thickness * n2 ) / window, 0.0, 1.0 );
+        gl_Position = vec4( ( p2 + thickness_b * n2 ) / window, 0.0, 1.0 );
         EmitVertex();
     }
     else {
         // proceed to negative normal
-        gl_Position = vec4( ( p2 - thickness * n1 ) / window, 0.0, 1.0 );
+        gl_Position = vec4( ( p2 - thickness_b * n1 ) / window, 0.0, 1.0 );
         EmitVertex();
 
         // proceed to positive miter
@@ -74,7 +83,7 @@ void main() {
         EmitVertex();
 
         // end at negative normal
-        gl_Position = vec4( ( p2 - thickness * n2 ) / window, 0.0, 1.0 );
+        gl_Position = vec4( ( p2 - thickness_b * n2 ) / window, 0.0, 1.0 );
         EmitVertex();
     }
 
