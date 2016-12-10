@@ -1,10 +1,16 @@
 # frame size
-n = 1024
+# 256 seems to cause coreaudio to lag and 735 is 60hz so 512 is good
+n = 512
+# maximum number of buffers in channel queue
+max_buffers = 8
 
 [uniforms]
-# decay amount
 decay = 0.5
 thickness = 4.0
 thinning = 0.2
-base_hue = 0.6666666666
-colorize = true
+base_hue = 0.3333
+colorize = false
+
+[debug]
+# when buffers are dropped, print "!"
+print_drop = true

@@ -8,20 +8,21 @@ extern crate portaudio;
 
 fn main() {
     let config = load_config();
-    let (mut stream, receiver) = init_audio(&config).unwrap();
+    let (mut stream, receiver, buffer_count) = init_audio(&config).unwrap();
     stream.start().unwrap();
-    display(&config, receiver);
+    display(&config, receiver, buffer_count);
     stream.stop().unwrap();
 }
 
 use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
 
 type PortAudioStream = portaudio::Stream<portaudio::NonBlocking, portaudio::Input<f32>>;
 const SAMPLE_RATE: f64 = 44_100.0;
 // const FRAMES: u32 = 256;
 const CHANNELS: i32 = 2;
 const INTERLEAVED: bool = true;
-fn init_audio(config: &Config) -> Result<(PortAudioStream, mpsc::Receiver<Vec<f32>>), portaudio::Error> {
+fn init_audio(config: &Config) -> Result<(PortAudioStream, mpsc::Receiver<Vec<f32>>, Arc<Mutex<usize>>), portaudio::Error> {
     use portaudio::{
         PortAudio,
         StreamParameters,
@@ -41,21 +42,43 @@ fn init_audio(config: &Config) -> Result<(PortAudioStream, mpsc::Receiver<Vec<f3
     pa.is_input_format_supported(input_params, SAMPLE_RATE)?;
     let settings = InputStreamSettings::new(input_params, SAMPLE_RATE, config.n);
 
-    let (sender, receiver) = mpsc::channel();
+    let buffer_count = Arc::new(Mutex::new(0));
+    let (receiver, callback) = {
+        let max_buffers = config.max_buffers;
+        let print_drop = config.debug.print_drop;
+        let (sender, receiver) = mpsc::channel();
+        let buffer_count = buffer_count.clone();
 
-    let callback = move |InputStreamCallbackArgs { buffer, .. }| {
-        sender.send(buffer.to_vec()).ok();
-        Continue
+        (receiver, move |InputStreamCallbackArgs { buffer, .. }| {
+            let dropped = {
+                let mut buffer_count = buffer_count.lock().unwrap();
+                if *buffer_count < max_buffers {
+                    sender.send(buffer.to_vec()).ok();
+                    *buffer_count += 1;
+                    false
+                } else {
+                    true
+                }
+            };
+            if dropped && print_drop {
+                print!("!");
+                use std::io::{self, Write};
+                io::stdout().flush().unwrap();
+            }
+            Continue
+        })
     };
     let stream = pa.open_non_blocking_stream(settings, callback)?;
 
-    Ok((stream, receiver))
+    Ok((stream, receiver, buffer_count))
 }
 
 #[derive(Debug, RustcDecodable)]
 struct Config {
     n: u32,
-    uniforms: Uniforms
+    max_buffers: usize,
+    uniforms: Uniforms,
+    debug: DebugConfig
 }
 #[derive(Debug, RustcDecodable)]
 struct Uniforms {
@@ -64,6 +87,10 @@ struct Uniforms {
     thinning: f32,
     base_hue: f32,
     colorize: bool,
+}
+#[derive(Debug, RustcDecodable)]
+struct DebugConfig {
+    print_drop: bool
 }
 
 #[derive(Copy, Clone)]
@@ -109,7 +136,7 @@ fn load_config() -> Config {
         .unwrap_or_else(|e| panic!("invalid config file: {}", e))
 }
 
-fn display(config: &Config, receiver: mpsc::Receiver<Vec<f32>>) {
+fn display(config: &Config, receiver: mpsc::Receiver<Vec<f32>>, buffer_count: Arc<Mutex<usize>>) {
     use glium::glutin::{
         WindowBuilder,
         Event,
@@ -163,6 +190,9 @@ fn display(config: &Config, receiver: mpsc::Receiver<Vec<f32>>) {
     loop {
         let mut target = display.draw();
         while let Ok(buffer) = receiver.try_recv() {
+            {
+                *buffer_count.lock().unwrap() -= 1;
+            };
             let next_ys = buffer.chunks(2)
                 .map(|x| Scalar { v: (x[0] + x[1]) / 2.0 })
                 .collect::<Vec<_>>();
