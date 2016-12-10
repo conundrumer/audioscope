@@ -7,3 +7,4 @@ authors = ["delu <davidelu93@gmail.com>"]
 toml = "*"
 rustc-serialize = "*"
 glium = "*"
+portaudio = "*"

@@ -1,11 +1,10 @@
+# frame size
 n = 1024
-t = 0.0
-dt = 0.02
-k = 3.5
-a = 0.95
 
 [uniforms]
+# decay amount
+decay = 0.5
 thickness = 4.0
-thinning = 1.0
+thinning = 0.2
 base_hue = 0.6666666666
 colorize = true
