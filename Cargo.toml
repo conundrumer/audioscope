@@ -4,4 +4,6 @@ version = "0.1.0"
 authors = ["delu <davidelu93@gmail.com>"]
 
 [dependencies]
+toml = "*"
+rustc-serialize = "*"
 glium = "*"
