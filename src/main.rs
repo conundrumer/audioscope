@@ -6,11 +6,18 @@ extern crate glium;
 
 extern crate portaudio;
 
+type MultiBuffer = Vec<Mutex<AudioBuffer>>;
+
+struct AudioBuffer {
+    rendered: bool,
+    data: Vec<f32>,
+}
+
 fn main() {
     let config = load_config();
-    let (mut stream, receiver, buffer_count) = init_audio(&config).unwrap();
+    let (mut stream, buffer) = init_audio(&config).unwrap();
     stream.start().unwrap();
-    display(&config, receiver, buffer_count);
+    display(&config, buffer);
     stream.stop().unwrap();
 }
 
@@ -19,10 +26,9 @@ use std::sync::{Arc, Mutex};
 
 type PortAudioStream = portaudio::Stream<portaudio::NonBlocking, portaudio::Input<f32>>;
 const SAMPLE_RATE: f64 = 44_100.0;
-// const FRAMES: u32 = 256;
 const CHANNELS: i32 = 2;
 const INTERLEAVED: bool = true;
-fn init_audio(config: &Config) -> Result<(PortAudioStream, mpsc::Receiver<Vec<f32>>, Arc<Mutex<usize>>), portaudio::Error> {
+fn init_audio(config: &Config) -> Result<(PortAudioStream, Arc<MultiBuffer>), portaudio::Error> {
     use portaudio::{
         PortAudio,
         StreamParameters,
@@ -42,35 +48,46 @@ fn init_audio(config: &Config) -> Result<(PortAudioStream, mpsc::Receiver<Vec<f3
     pa.is_input_format_supported(input_params, SAMPLE_RATE)?;
     let settings = InputStreamSettings::new(input_params, SAMPLE_RATE, config.n);
 
-    let buffer_count = Arc::new(Mutex::new(0));
-    let (receiver, callback) = {
-        let max_buffers = config.max_buffers;
-        let print_drop = config.debug.print_drop;
-        let (sender, receiver) = mpsc::channel();
-        let buffer_count = buffer_count.clone();
+    let mut buffers = Vec::with_capacity(config.max_buffers);
+    for _ in 0..config.max_buffers {
+        buffers.push(Mutex::new(AudioBuffer {
+            rendered: true,
+            data: vec![0.0; CHANNELS as usize * config.n as usize]
+        }));
+    }
+    let buffers = Arc::new(buffers);
 
-        (receiver, move |InputStreamCallbackArgs { buffer, .. }| {
+    let (receiver, callback) = {
+        let mut index = 0;
+        let (sender, receiver) = mpsc::channel();
+        let print_drop = config.debug.print_drop;
+        let buffers = buffers.clone();
+
+        (receiver, move |InputStreamCallbackArgs { buffer: data, .. }| {
             let dropped = {
-                let mut buffer_count = buffer_count.lock().unwrap();
-                if *buffer_count < max_buffers {
-                    sender.send(buffer.to_vec()).ok();
-                    *buffer_count += 1;
-                    false
-                } else {
-                    true
-                }
+                let mut buffer = buffers[index].lock().unwrap();
+                let rendered = buffer.rendered;
+                buffer.rendered = false;
+                buffer.data.copy_from_slice(data);
+                !rendered
             };
+            index = (index + 1) % buffers.len();
             if dropped && print_drop {
-                print!("!");
-                use std::io::{self, Write};
-                io::stdout().flush().unwrap();
+                sender.send(()).ok();
             }
             Continue
         })
     };
+    std::thread::spawn(move || {
+        while let Ok(_) = receiver.recv() {
+            print!("!");
+            use std::io::{self, Write};
+            io::stdout().flush().unwrap();
+        }
+    });
     let stream = pa.open_non_blocking_stream(settings, callback)?;
 
-    Ok((stream, receiver, buffer_count))
+    Ok((stream, buffers))
 }
 
 #[derive(Debug, RustcDecodable)]
@@ -136,7 +153,7 @@ fn load_config() -> Config {
         .unwrap_or_else(|e| panic!("invalid config file: {}", e))
 }
 
-fn display(config: &Config, receiver: mpsc::Receiver<Vec<f32>>, buffer_count: Arc<Mutex<usize>>) {
+fn display(config: &Config, buffers: Arc<MultiBuffer>) {
     use glium::glutin::{
         WindowBuilder,
         Event,
@@ -155,11 +172,11 @@ fn display(config: &Config, receiver: mpsc::Receiver<Vec<f32>>, buffer_count: Ar
     };
 
     let display = WindowBuilder::new()
-        .with_multisampling(4)
+        // .with_multisampling(4) // THIS IS LAGGY!
         .with_vsync()
         .build_glium().unwrap();
 
-    let ys_data: Vec<_> = (0..config.n).map(|_| Scalar { v: 0.0 }).collect();
+    let mut ys_data: Vec<_> = (0..config.n).map(|_| Scalar { v: 0.0 }).collect();
     let ys = VertexBuffer::dynamic(&display, &ys_data).unwrap();
     let indices = NoIndices(PrimitiveType::LineStripAdjacency);
     let v_shader = load_from_file("src/line.vert");
@@ -187,16 +204,19 @@ fn display(config: &Config, receiver: mpsc::Receiver<Vec<f32>>, buffer_count: Ar
         colorize,
     } = config.uniforms;
 
+    let mut index = 0;
     loop {
         let mut target = display.draw();
-        while let Ok(buffer) = receiver.try_recv() {
+        while { !buffers[index].lock().unwrap().rendered } {
             {
-                *buffer_count.lock().unwrap() -= 1;
+                let mut buffer = buffers[index].lock().unwrap();
+                for (y, x) in ys_data.iter_mut().zip(buffer.data.chunks(CHANNELS as usize)) {
+                    y.v = (x[0] + x[1]) / 2.0;
+                }
+                buffer.rendered = true;
             };
-            let next_ys = buffer.chunks(2)
-                .map(|x| Scalar { v: (x[0] + x[1]) / 2.0 })
-                .collect::<Vec<_>>();
-            ys.write(&next_ys);
+            ys.write(&ys_data);
+            index = (index + 1) % buffers.len();
 
             let window = display.get_window().unwrap();
             let (width, height) = window.get_inner_size_points().unwrap();
