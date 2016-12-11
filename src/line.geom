@@ -8,7 +8,8 @@ uniform float thinning;
 layout(lines_adjacency) in;
 layout(triangle_strip, max_vertices = 5) out;
 
-out float relative_length;
+// out float relative_length;
+out float angle;
 
 void emit_position(vec2 pos) {
     gl_Position = vec4(pos / window, 0.0, 1.0);
@@ -57,7 +58,8 @@ void main() {
     vec2 miter_a = miter_a_norm * thickness_a / dot(miter_a_norm, n1);
     vec2 miter_b = miter_b_norm * thickness_b / dot(miter_b_norm, n1);
 
-    relative_length = length_a_;
+    // relative_length = length_a_;
+    angle = n * abs(acos(dot(n0, n1)));
     if(dot(v0, n1) > 0) {
         // start at negative miter
         emit_position(p1 - miter_a);
@@ -70,7 +72,8 @@ void main() {
         emit_position(p1 + miter_a);
     }
 
-    relative_length = length_b_;
+    // relative_length = length_b_;
+    angle = n * abs(acos(dot(n1, n2)));
     if (dot(v2, n1) < 0) {
         // proceed to negative miter
         emit_position(p2 - miter_b);
