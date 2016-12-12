@@ -32,7 +32,9 @@ const CHANNELS: i32 = 2;
 const INTERLEAVED: bool = true;
 
 pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), portaudio::Error> {
-    let n = config.audio.buffer_size as usize;
+    let buffer_size = config.audio.buffer_size as usize;
+    let fft_size = config.audio.fft_size as usize;
+    let num_buffers = config.audio.num_buffers;
 
     let pa = PortAudio::new()?;
 
@@ -44,52 +46,65 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
     let input_params = StreamParameters::<f32>::new(def_input, CHANNELS, INTERLEAVED, latency);
 
     pa.is_input_format_supported(input_params, SAMPLE_RATE)?;
-    let settings = InputStreamSettings::new(input_params, SAMPLE_RATE, n as u32);
+    let settings = InputStreamSettings::new(input_params, SAMPLE_RATE, buffer_size as u32);
 
-    let mut buffers = Vec::with_capacity(config.audio.num_buffers);
-    let empty_buffer = vec![Scalar {v: 0.0}; n];
-    for _ in 0..config.audio.num_buffers {
+    let mut buffers = Vec::with_capacity(num_buffers);
+
+    for _ in 0..num_buffers {
         buffers.push(Mutex::new(AudioBuffer {
             rendered: true,
-            time: empty_buffer.clone(),
-            freq: empty_buffer.clone(), // magnitude only for now
+            time: vec![Scalar {v: 0.0}; buffer_size],
+            freq: vec![Scalar {v: 0.0}; fft_size], // magnitude only for now
         }));
     }
     let buffers = Arc::new(buffers);
 
     let (receiver, callback) = {
-        let mut index = 0;
+        let mut buffer_index = 0;
         let (sender, receiver) = mpsc::channel();
         let print_drop = config.debug.print_drop;
         let buffers = buffers.clone();
-        let mut time_buffer = empty_buffer.clone();
-        let mut freq_buffer = empty_buffer.clone();
-        let mut complex_time_buffer = vec![Complex::new(0.0, 0.0); n];
-        let mut complex_freq_buffer = vec![Complex::new(0.0, 0.0); n];
+        let mut time_buffer = vec![Scalar {v: 0.0}; buffer_size];
+        let mut freq_buffer = vec![Scalar {v: 0.0}; fft_size];
 
-        let n = n as f32;
-        let mut fft = FFT::new(freq_buffer.len(), false);
+        let mut time_index = 0;
+        let mut time_ring_buffer = vec![Complex::new(0.0, 0.0); 2 * fft_size];
+        let mut complex_freq_buffer = vec![Complex::new(0.0f32, 0.0); fft_size];
+
+        let mut fft = FFT::new(fft_size, false);
+        let buffer_size = buffer_size as f32;
 
         (receiver, move |InputStreamCallbackArgs { buffer: data, .. }| {
-            for ((x, y), z) in data.chunks(CHANNELS as usize).zip(time_buffer.iter_mut()).zip(complex_time_buffer.iter_mut()) {
-                let mono = (x[0] + x[1]) / 2.0;
-                y.v = mono;
-                *z = Complex::new(mono, 0.0);
+            {
+                let (left, right) = time_ring_buffer.split_at_mut(fft_size);
+                for (((x, y), t0), t1) in data.chunks(CHANNELS as usize)
+                    .zip(time_buffer.iter_mut())
+                    .zip(left.iter_mut().skip(time_index))
+                    .zip(right.iter_mut().skip(time_index))
+                {
+                    let mono = (x[0] + x[1]) / 2.0;
+                    y.v = mono;
+                    let mono = Complex::new(mono, 0.0);
+                    *t0 = mono;
+                    *t1 = mono;
+                }
             }
-            fft.process(&complex_time_buffer[..], &mut complex_freq_buffer[..]);
+            fft.process(&time_ring_buffer[time_index..time_index + fft_size], &mut complex_freq_buffer[..]);
+            time_index += (time_index + buffer_size as usize) % fft_size;
+
             for (x, y) in complex_freq_buffer.iter().zip(freq_buffer.iter_mut()) {
-                y.v = x.norm_sqr().sqrt() / n;
+                y.v = x.norm_sqr().sqrt() / buffer_size;
             }
 
             let dropped = {
-                let mut buffer = buffers[index].lock().unwrap();
+                let mut buffer = buffers[buffer_index].lock().unwrap();
                 let rendered = buffer.rendered;
                 buffer.time.copy_from_slice(&time_buffer);
                 buffer.freq.copy_from_slice(&freq_buffer);
                 buffer.rendered = false;
                 !rendered
             };
-            index = (index + 1) % buffers.len();
+            buffer_index = (buffer_index + 1) % num_buffers;
             if dropped && print_drop {
                 sender.send(()).ok();
             }
