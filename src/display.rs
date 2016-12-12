@@ -90,7 +90,7 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
         while { !buffers[index].lock().unwrap().rendered } {
             {
                 let mut buffer = buffers[index].lock().unwrap();
-                ys_data.copy_from_slice(&buffer.data);
+                ys_data.copy_from_slice(&buffer.freq);
                 buffer.rendered = true;
             };
             ys.write(&ys_data);

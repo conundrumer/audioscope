@@ -3,6 +3,8 @@ extern crate rustc_serialize;
 #[macro_use]
 extern crate glium;
 extern crate portaudio;
+extern crate num;
+extern crate rustfft;
 
 mod file_loader;
 mod config;

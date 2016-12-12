@@ -12,6 +12,8 @@ use portaudio::{
     InputStreamCallbackArgs,
     Continue,
 };
+use num::complex::Complex;
+use rustfft::FFT;
 
 use config::Config;
 use display::Scalar;
@@ -21,7 +23,8 @@ pub type PortAudioStream = Stream<NonBlocking, Input<f32>>;
 
 pub struct AudioBuffer {
     pub rendered: bool,
-    pub data: Vec<Scalar>,
+    pub time: Vec<Scalar>,
+    pub freq: Vec<Scalar>,
 }
 
 const SAMPLE_RATE: f64 = 44_100.0;
@@ -29,6 +32,8 @@ const CHANNELS: i32 = 2;
 const INTERLEAVED: bool = true;
 
 pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), portaudio::Error> {
+    let n = config.n as usize;
+
     let pa = PortAudio::new()?;
 
     let def_input = pa.default_input_device()?;
@@ -42,10 +47,12 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
     let settings = InputStreamSettings::new(input_params, SAMPLE_RATE, config.n);
 
     let mut buffers = Vec::with_capacity(config.max_buffers);
+    let empty_buffer = vec![Scalar {v: 0.0}; n];
     for _ in 0..config.max_buffers {
         buffers.push(Mutex::new(AudioBuffer {
             rendered: true,
-            data: vec![Scalar {v: 0.0}; config.n as usize]
+            time: empty_buffer.clone(),
+            freq: empty_buffer.clone(), // magnitude only for now
         }));
     }
     let buffers = Arc::new(buffers);
@@ -55,16 +62,30 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
         let (sender, receiver) = mpsc::channel();
         let print_drop = config.debug.print_drop;
         let buffers = buffers.clone();
-        let mut temp_buffer = vec![Scalar {v: 0.0}; config.n as usize];
+        let mut time_buffer = empty_buffer.clone();
+        let mut freq_buffer = empty_buffer.clone();
+        let mut complex_time_buffer = vec![Complex::new(0.0, 0.0); n];
+        let mut complex_freq_buffer = vec![Complex::new(0.0, 0.0); n];
+
+        let n = n as f32;
+        let mut fft = FFT::new(freq_buffer.len(), false);
 
         (receiver, move |InputStreamCallbackArgs { buffer: data, .. }| {
-            for (y, x) in temp_buffer.iter_mut().zip(data.chunks(CHANNELS as usize)) {
-                y.v = (x[0] + x[1]) / 2.0;
+            for ((x, y), z) in data.chunks(CHANNELS as usize).zip(time_buffer.iter_mut()).zip(complex_time_buffer.iter_mut()) {
+                let mono = (x[0] + x[1]) / 2.0;
+                y.v = mono;
+                *z = Complex::new(mono, 0.0);
             }
+            fft.process(&complex_time_buffer[..], &mut complex_freq_buffer[..]);
+            for (x, y) in complex_freq_buffer.iter().zip(freq_buffer.iter_mut()) {
+                y.v = x.norm_sqr().sqrt() / n;
+            }
+
             let dropped = {
                 let mut buffer = buffers[index].lock().unwrap();
                 let rendered = buffer.rendered;
-                buffer.data.copy_from_slice(&temp_buffer);
+                buffer.time.copy_from_slice(&time_buffer);
+                buffer.freq.copy_from_slice(&freq_buffer);
                 buffer.rendered = false;
                 !rendered
             };
