@@ -42,7 +42,8 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
         .with_vsync()
         .build_glium().unwrap();
 
-    let mut ys_data: Vec<_> = (0..config.n).map(|_| Scalar { v: 0.0 }).collect();
+    let n = config.audio.buffer_size;
+    let mut ys_data: Vec<_> = (0..n).map(|_| Scalar { v: 0.0 }).collect();
     let ys = VertexBuffer::dynamic(&display, &ys_data).unwrap();
     let indices = NoIndices(PrimitiveType::LineStripAdjacency);
     let wave_program = Program::from_source(
@@ -100,7 +101,7 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
             let (width, height) = window.get_inner_size_points().unwrap();
 
             let uniforms = uniform! {
-                n: config.n,
+                n: n,
                 decay: decay,
                 window: [width as f32, height as f32],
                 thickness: thickness,

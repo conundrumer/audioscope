@@ -32,7 +32,7 @@ const CHANNELS: i32 = 2;
 const INTERLEAVED: bool = true;
 
 pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), portaudio::Error> {
-    let n = config.n as usize;
+    let n = config.audio.buffer_size as usize;
 
     let pa = PortAudio::new()?;
 
@@ -44,11 +44,11 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
     let input_params = StreamParameters::<f32>::new(def_input, CHANNELS, INTERLEAVED, latency);
 
     pa.is_input_format_supported(input_params, SAMPLE_RATE)?;
-    let settings = InputStreamSettings::new(input_params, SAMPLE_RATE, config.n);
+    let settings = InputStreamSettings::new(input_params, SAMPLE_RATE, n as u32);
 
-    let mut buffers = Vec::with_capacity(config.max_buffers);
+    let mut buffers = Vec::with_capacity(config.audio.num_buffers);
     let empty_buffer = vec![Scalar {v: 0.0}; n];
-    for _ in 0..config.max_buffers {
+    for _ in 0..config.audio.num_buffers {
         buffers.push(Mutex::new(AudioBuffer {
             rendered: true,
             time: empty_buffer.clone(),

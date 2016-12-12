@@ -6,10 +6,15 @@ use file_loader::load_from_file;
 
 #[derive(Debug, RustcDecodable)]
 pub struct Config {
-    pub n: u32,
-    pub max_buffers: usize,
     pub uniforms: Uniforms,
+    pub audio: AudioConfig,
     pub debug: DebugConfig,
+}
+#[derive(Debug, RustcDecodable)]
+pub struct AudioConfig {
+    pub buffer_size: u32,
+    pub num_buffers: usize,
+    pub fft_size: u32,
 }
 #[derive(Debug, RustcDecodable)]
 pub struct Uniforms {

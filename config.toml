@@ -1,7 +1,7 @@
-# frame size
-n = 256
-# maximum number of buffers in channel queue
-max_buffers = 16
+[audio]
+buffer_size = 256
+num_buffers = 16
+fft_size = 1024
 
 [uniforms]
 decay = 0.5
