@@ -22,17 +22,16 @@ use config::{
 };
 use audio::{
     MultiBuffer,
-    CHANNELS,
 };
 
 #[derive(Copy, Clone)]
-struct Scalar {
-    v: f32
+pub struct Scalar {
+    pub v: f32
 }
 implement_vertex!(Scalar, v);
 
 #[derive(Copy, Clone)]
-struct Vector {
+pub struct Vector {
     vec: [f32; 2],
 }
 implement_vertex!(Vector, vec);
@@ -80,13 +79,18 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
 
     let mut index = 0;
     loop {
+        for ev in display.poll_events() {
+            match ev {
+                Event::Closed => return,
+                _ => {}
+            }
+        }
+
         let mut target = display.draw();
         while { !buffers[index].lock().unwrap().rendered } {
             {
                 let mut buffer = buffers[index].lock().unwrap();
-                for (y, x) in ys_data.iter_mut().zip(buffer.data.chunks(CHANNELS as usize)) {
-                    y.v = (x[0] + x[1]) / 2.0;
-                }
+                ys_data.copy_from_slice(&buffer.data);
                 buffer.rendered = true;
             };
             ys.write(&ys_data);
@@ -109,11 +113,5 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
         }
 
         target.finish().unwrap();
-        for ev in display.poll_events() {
-            match ev {
-                Event::Closed => return,
-                _ => {}
-            }
-        }
     }
 }

@@ -14,17 +14,18 @@ use portaudio::{
 };
 
 use config::Config;
+use display::Scalar;
 
 pub type MultiBuffer = Arc<Vec<Mutex<AudioBuffer>>>;
 pub type PortAudioStream = Stream<NonBlocking, Input<f32>>;
 
 pub struct AudioBuffer {
     pub rendered: bool,
-    pub data: Vec<f32>,
+    pub data: Vec<Scalar>,
 }
 
 const SAMPLE_RATE: f64 = 44_100.0;
-pub const CHANNELS: i32 = 2;
+const CHANNELS: i32 = 2;
 const INTERLEAVED: bool = true;
 
 pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), portaudio::Error> {
@@ -44,7 +45,7 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
     for _ in 0..config.max_buffers {
         buffers.push(Mutex::new(AudioBuffer {
             rendered: true,
-            data: vec![0.0; CHANNELS as usize * config.n as usize]
+            data: vec![Scalar {v: 0.0}; config.n as usize]
         }));
     }
     let buffers = Arc::new(buffers);
@@ -54,13 +55,17 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
         let (sender, receiver) = mpsc::channel();
         let print_drop = config.debug.print_drop;
         let buffers = buffers.clone();
+        let mut temp_buffer = vec![Scalar {v: 0.0}; config.n as usize];
 
         (receiver, move |InputStreamCallbackArgs { buffer: data, .. }| {
+            for (y, x) in temp_buffer.iter_mut().zip(data.chunks(CHANNELS as usize)) {
+                y.v = (x[0] + x[1]) / 2.0;
+            }
             let dropped = {
                 let mut buffer = buffers[index].lock().unwrap();
                 let rendered = buffer.rendered;
+                buffer.data.copy_from_slice(&temp_buffer);
                 buffer.rendered = false;
-                buffer.data.copy_from_slice(data);
                 !rendered
             };
             index = (index + 1) % buffers.len();

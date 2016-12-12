@@ -1,7 +1,7 @@
 # frame size
-n = 512
+n = 256
 # maximum number of buffers in channel queue
-max_buffers = 8
+max_buffers = 16
 
 [uniforms]
 decay = 0.5
