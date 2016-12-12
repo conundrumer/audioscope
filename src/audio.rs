@@ -124,3 +124,52 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
 
     Ok((stream, buffers))
 }
+
+// FIR analytical signal transform of length n with zero padding to be length m
+// real part removes DC and nyquist, imaginary part phase shifts by 90
+// should act as bandpass (remove all negative frequencies + DC & nyquist)
+fn make_analytic(n: usize, m: usize) -> Vec<Complex<f32>> {
+    use ::std::f32::consts::PI;
+    assert_eq!(n % 2, 1, "n should be odd");
+    assert!(n <= m, "n should be less than or equal to m");
+    // let a = 2.0 / n as f32;
+    let mut fft = FFT::new(m, false);
+
+    let mut impulse = vec![Complex::new(0.0, 0.0); m];
+    let mut freqs = impulse.clone();
+
+    let mid = (n - 1) / 2;
+
+    impulse[mid].re = 1.0;
+    let re = -1.0 / (mid - 1) as f32;
+    for i in 1..mid+1 {
+        if i % 2 == 0 {
+            impulse[mid + i].re = re;
+            impulse[mid - i].re = re;
+        } else {
+            let im = 2.0 / PI / i as f32;
+            impulse[mid + i].im = im;
+            impulse[mid - i].im = -im;
+        }
+        // hamming window
+        let k = 0.53836 + 0.46164 * (i as f32 * PI / (mid + 1) as f32).cos();
+        impulse[mid + i] = impulse[mid + i].scale(k);
+        impulse[mid - i] = impulse[mid - i].scale(k);
+    }
+    fft.process(&impulse, &mut freqs);
+    freqs
+}
+
+#[test]
+fn analytic() {
+    let m = 1024; // ~ 40hz
+    let n = m / 4 * 3 - 1; // overlap 75%
+    let freqs = make_analytic(n, m);
+    // DC is below -6db
+    assert!(10.0 * freqs[0].norm_sqr().log(10.0) < -6.0);
+    // 40hz is above 0db
+    assert!(10.0 * freqs[1].norm_sqr().log(10.0) > 0.0);
+    // -40hz is below -12db
+    assert!(10.0 * freqs[m-1].norm_sqr().log(10.0) < -12.0);
+    // actually these magnitudes are halved bc passband is +6db
+}
