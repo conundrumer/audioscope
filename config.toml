@@ -4,7 +4,7 @@ num_buffers = 16
 fft_size = 1024
 
 [uniforms]
-decay = 0.5
+decay = 0.3
 thickness = 3.0
 thinning = 0.0
 base_hue = 0.3333

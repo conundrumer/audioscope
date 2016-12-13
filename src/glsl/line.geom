@@ -10,6 +10,7 @@ layout(triangle_strip, max_vertices = 5) out;
 
 out float relative_length;
 out float angle;
+out float position;
 
 void emit_position(vec2 pos) {
     gl_Position = vec4(pos / window, 0.0, 1.0);
@@ -67,6 +68,8 @@ void main() {
     vec2 miter_a = miter_a_norm * min(miter_a_length, max(thickness, miter_a_length_max));
     vec2 miter_b = miter_b_norm * min(miter_b_length, max(thickness, miter_b_length_max));
 
+    float n = n;
+    position = gl_in[1].gl_Position.z;
     relative_length = length_a_;
     angle = n * abs(acos(dot(n0, n1)));
     if(dot(v0, n1) > 0) {
@@ -81,6 +84,7 @@ void main() {
         emit_position(p1 + miter_a);
     }
 
+    position = gl_in[2].gl_Position.z;
     relative_length = length_b_;
     angle = n * abs(acos(dot(n1, n2)));
     if (dot(v2, n1) < 0) {

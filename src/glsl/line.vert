@@ -1,15 +1,17 @@
 #version 150
 
-uniform uint n;
 uniform vec2 window;
+uniform uint n;
+uniform float decay;
 
 in vec2 vec;
 
 void main() {
-    // float x = 2.0 * gl_VertexID / n - 1.0;
+    float n = n;
+    float z = (gl_VertexID - 1) / (n - 2);
     if (window.y > window.x) {
-        gl_Position = vec4(vec.x, vec.y, 1.0, 1.0);
+        gl_Position = vec4(vec.x, vec.y, z, 1.0);
     } else {
-        gl_Position = vec4(vec.y, vec.x, 1.0, 1.0);
+        gl_Position = vec4(vec.y, vec.x, z, 1.0);
     }
 }
