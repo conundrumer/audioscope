@@ -37,6 +37,7 @@ void main() {
     vec2 p1 = p1_ * square;
     vec2 p2 = p2_ * square;
     vec2 p3 = p3_ * square;
+    float length_b = distance(p1, p2);
 
     // vectors for the 3 segments (previous, current, next)
     vec2 v0 = p1 - p0;
@@ -58,8 +59,13 @@ void main() {
     float thickness_b = min(thickness, thickness_adjusted / mix(1.0, n * length_b_, thinning));
 
     // the length of the miter by projecting it onto normal and then inverse it
-    vec2 miter_a = miter_a_norm * thickness_a / dot(miter_a_norm, n1);
-    vec2 miter_b = miter_b_norm * thickness_b / dot(miter_b_norm, n1);
+    // also bound the length
+    float miter_a_length = abs(thickness_a / dot(miter_a_norm, n1));
+    float miter_a_length_max = abs(length_b / dot(miter_a_norm, v1));
+    float miter_b_length = abs(thickness_b / dot(miter_b_norm, n1));
+    float miter_b_length_max = abs(length_b / dot(miter_b_norm, v1));
+    vec2 miter_a = miter_a_norm * min(miter_a_length, max(thickness, miter_a_length_max));
+    vec2 miter_b = miter_b_norm * min(miter_b_length, max(thickness, miter_b_length_max));
 
     relative_length = length_a_;
     angle = n * abs(acos(dot(n0, n1)));
