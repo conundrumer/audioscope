@@ -16,15 +16,14 @@ use num::complex::Complex;
 use rustfft::FFT;
 
 use config::Config;
-use display::Scalar;
+use display::Vector;
 
 pub type MultiBuffer = Arc<Vec<Mutex<AudioBuffer>>>;
 pub type PortAudioStream = Stream<NonBlocking, Input<f32>>;
 
 pub struct AudioBuffer {
     pub rendered: bool,
-    pub time: Vec<Scalar>,
-    pub freq: Vec<Scalar>,
+    pub analytic: Vec<Vector>,
 }
 
 const SAMPLE_RATE: f64 = 44_100.0;
@@ -53,8 +52,7 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
     for _ in 0..num_buffers {
         buffers.push(Mutex::new(AudioBuffer {
             rendered: true,
-            time: vec![Scalar {v: 0.0}; buffer_size],
-            freq: vec![Scalar {v: 0.0}; fft_size], // magnitude only for now
+            analytic: vec![Vector {vec: [0.0, 0.0]}; buffer_size],
         }));
     }
     let buffers = Arc::new(buffers);
@@ -64,43 +62,49 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
         let (sender, receiver) = mpsc::channel();
         let print_drop = config.debug.print_drop;
         let buffers = buffers.clone();
-        let mut time_buffer = vec![Scalar {v: 0.0}; buffer_size];
-        let mut freq_buffer = vec![Scalar {v: 0.0}; fft_size];
+        let mut analytic_buffer = vec![Vector {vec: [0.0, 0.0]}; buffer_size];
 
         let mut time_index = 0;
         let mut time_ring_buffer = vec![Complex::new(0.0, 0.0); 2 * fft_size];
+        // this gets multiplied to convolve stuff
         let mut complex_freq_buffer = vec![Complex::new(0.0f32, 0.0); fft_size];
+        let mut complex_analytic_buffer = vec![Complex::new(0.0f32, 0.0); fft_size];
 
+        let mut n = fft_size - buffer_size;
+        if n % 2 == 0 {
+            n -= 1;
+        }
+        let analytic = make_analytic(n, fft_size);
         let mut fft = FFT::new(fft_size, false);
-        let buffer_size = buffer_size as f32;
+        let mut ifft = FFT::new(fft_size, true);
 
         (receiver, move |InputStreamCallbackArgs { buffer: data, .. }| {
             {
                 let (left, right) = time_ring_buffer.split_at_mut(fft_size);
-                for (((x, y), t0), t1) in data.chunks(CHANNELS as usize)
-                    .zip(time_buffer.iter_mut())
-                    .zip(left.iter_mut().skip(time_index))
-                    .zip(right.iter_mut().skip(time_index))
+                for ((x, t0), t1) in data.chunks(CHANNELS as usize)
+                    .zip(left[time_index..(time_index + buffer_size)].iter_mut())
+                    .zip(right[time_index..(time_index + buffer_size)].iter_mut())
                 {
-                    let mono = (x[0] + x[1]) / 2.0;
-                    y.v = mono;
-                    let mono = Complex::new(mono, 0.0);
+                    let mono = Complex::new((x[0] + x[1]) / 2.0, 0.0);
                     *t0 = mono;
                     *t1 = mono;
                 }
             }
+            time_index = (time_index + buffer_size as usize) % fft_size;
             fft.process(&time_ring_buffer[time_index..time_index + fft_size], &mut complex_freq_buffer[..]);
-            time_index += (time_index + buffer_size as usize) % fft_size;
 
-            for (x, y) in complex_freq_buffer.iter().zip(freq_buffer.iter_mut()) {
-                y.v = x.norm_sqr().sqrt() / buffer_size;
+            for (x, y) in analytic.iter().zip(complex_freq_buffer.iter_mut()) {
+                *y = *x * *y;
+            }
+            ifft.process(&complex_freq_buffer[..], &mut complex_analytic_buffer[..]);
+            for (x, y) in complex_analytic_buffer[fft_size - buffer_size..].iter().zip(analytic_buffer.iter_mut()) {
+                *y = Vector { vec: [x.re / fft_size as f32, x.im / fft_size as f32] };
             }
 
             let dropped = {
                 let mut buffer = buffers[buffer_index].lock().unwrap();
                 let rendered = buffer.rendered;
-                buffer.time.copy_from_slice(&time_buffer);
-                buffer.freq.copy_from_slice(&freq_buffer);
+                buffer.analytic.copy_from_slice(&analytic_buffer);
                 buffer.rendered = false;
                 !rendered
             };
@@ -161,7 +165,7 @@ fn make_analytic(n: usize, m: usize) -> Vec<Complex<f32>> {
 }
 
 #[test]
-fn analytic() {
+fn test_analytic() {
     let m = 1024; // ~ 40hz
     let n = m / 4 * 3 - 1; // overlap 75%
     let freqs = make_analytic(n, m);

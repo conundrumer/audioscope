@@ -30,10 +30,13 @@ void main() {
     float length_b_ = distance(p1_, p2_);
 
     // transform to screen coordinates
-    vec2 p0 = p0_ * window;
-    vec2 p1 = p1_ * window;
-    vec2 p2 = p2_ * window;
-    vec2 p3 = p3_ * window;
+    // and also make it square
+    float side = min(window.x, window.y);
+    vec2 square = vec2(side, side);
+    vec2 p0 = p0_ * square;
+    vec2 p1 = p1_ * square;
+    vec2 p2 = p2_ * square;
+    vec2 p3 = p3_ * square;
 
     // vectors for the 3 segments (previous, current, next)
     vec2 v0 = p1 - p0;
