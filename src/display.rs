@@ -31,10 +31,17 @@ pub struct Scalar {
 implement_vertex!(Scalar, v);
 
 #[derive(Copy, Clone)]
-pub struct Vector {
+pub struct Vec2 {
     pub vec: [f32; 2],
 }
-implement_vertex!(Vector, vec);
+implement_vertex!(Vec2, vec);
+
+#[derive(Copy, Clone)]
+pub struct Vec4 {
+    pub vec: [f32; 4],
+}
+implement_vertex!(Vec4, vec);
+
 
 pub fn display(config: &Config, buffers: MultiBuffer) {
     let display = WindowBuilder::new()
@@ -43,7 +50,7 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
         .build_glium().unwrap();
 
     let n = config.audio.buffer_size + 3;
-    let mut ys_data: Vec<_> = (0..n).map(|_| Vector { vec: [0.0, 0.0] }).collect();
+    let mut ys_data: Vec<_> = (0..n).map(|_| Vec4 { vec: [0.0, 0.0, 0.0, 0.0] }).collect();
     let ys = VertexBuffer::dynamic(&display, &ys_data).unwrap();
     let indices = NoIndices(PrimitiveType::LineStripAdjacency);
     let wave_program = Program::from_source(
@@ -54,7 +61,7 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
     ).unwrap();
 
     let clear_rect = [[-1.0, -1.0], [-1.0, 1.0], [1.0, -1.0], [1.0, 1.0]].into_iter()
-        .map(|&v| Vector { vec: v })
+        .map(|&v| Vec2 { vec: v })
         .collect::<Vec<_>>();
     let clear_rect_verts = VertexBuffer::new(&display, &clear_rect).unwrap();
     let clear_rect_indices = NoIndices(PrimitiveType::TriangleStrip);

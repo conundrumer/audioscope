@@ -4,7 +4,7 @@ uniform vec2 window;
 uniform uint n;
 uniform float decay;
 
-in vec2 vec;
+in vec4 vec;
 
 void main() {
     float n = n;
