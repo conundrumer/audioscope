@@ -52,7 +52,7 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
     for _ in 0..num_buffers {
         buffers.push(Mutex::new(AudioBuffer {
             rendered: true,
-            analytic: vec![Vector {vec: [0.0, 0.0]}; buffer_size],
+            analytic: vec![Vector {vec: [0.0, 0.0]}; buffer_size + 3],
         }));
     }
     let buffers = Arc::new(buffers);
@@ -62,7 +62,7 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
         let (sender, receiver) = mpsc::channel();
         let print_drop = config.debug.print_drop;
         let buffers = buffers.clone();
-        let mut analytic_buffer = vec![Vector {vec: [0.0, 0.0]}; buffer_size];
+        let mut analytic_buffer = vec![Vector {vec: [0.0, 0.0]}; buffer_size + 3];
 
         let mut time_index = 0;
         let mut time_ring_buffer = vec![Complex::new(0.0, 0.0); 2 * fft_size];
@@ -97,7 +97,11 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
                 *y = *x * *y;
             }
             ifft.process(&complex_freq_buffer[..], &mut complex_analytic_buffer[..]);
-            for (x, y) in complex_analytic_buffer[fft_size - buffer_size..].iter().zip(analytic_buffer.iter_mut()) {
+
+            analytic_buffer[0] = analytic_buffer[buffer_size];
+            analytic_buffer[1] = analytic_buffer[buffer_size + 1];
+            analytic_buffer[2] = analytic_buffer[buffer_size + 2];
+            for (x, y) in complex_analytic_buffer[fft_size - buffer_size..].iter().zip(analytic_buffer[3..].iter_mut()) {
                 *y = Vector { vec: [x.re / fft_size as f32, x.im / fft_size as f32] };
             }
 

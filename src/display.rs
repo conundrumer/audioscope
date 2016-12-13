@@ -42,7 +42,7 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
         .with_vsync()
         .build_glium().unwrap();
 
-    let n = config.audio.buffer_size;
+    let n = config.audio.buffer_size + 3;
     let mut ys_data: Vec<_> = (0..n).map(|_| Vector { vec: [0.0, 0.0] }).collect();
     let ys = VertexBuffer::dynamic(&display, &ys_data).unwrap();
     let indices = NoIndices(PrimitiveType::LineStripAdjacency);
