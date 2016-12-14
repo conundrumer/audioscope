@@ -8,8 +8,10 @@ uniform float thinning;
 layout(lines_adjacency) in;
 layout(triangle_strip, max_vertices = 5) out;
 
+in vec2[] angular_velocity;
+
 out float relative_length;
-out float angle;
+out vec2 angle;
 out float position;
 
 void emit_position(vec2 pos) {
@@ -71,7 +73,7 @@ void main() {
     float n = n;
     position = gl_in[1].gl_Position.z;
     relative_length = length_a_;
-    angle = n * abs(acos(dot(n0, n1)));
+    angle = angular_velocity[1];
     if(dot(v0, n1) > 0) {
         // start at negative miter
         emit_position(p1 - miter_a);
@@ -86,7 +88,7 @@ void main() {
 
     position = gl_in[2].gl_Position.z;
     relative_length = length_b_;
-    angle = n * abs(acos(dot(n1, n2)));
+    angle = angular_velocity[2];
     if (dot(v2, n1) < 0) {
         // proceed to negative miter
         emit_position(p2 - miter_b);

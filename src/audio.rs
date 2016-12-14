@@ -34,6 +34,8 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
     let buffer_size = config.audio.buffer_size as usize;
     let fft_size = config.audio.fft_size as usize;
     let num_buffers = config.audio.num_buffers;
+    let cutoff = config.audio.cutoff;
+    let q = config.audio.q;
 
     let pa = PortAudio::new()?;
 
@@ -78,6 +80,11 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
         let mut fft = FFT::new(fft_size, false);
         let mut ifft = FFT::new(fft_size, true);
 
+        let mut prev_input = Complex::new(0.0, 0.0); // sample n-1
+        let mut prev_diff = Complex::new(0.0, 0.0); // sample n-1 - sample n-2
+        let mut angle_lp = get_lowpass(cutoff, q);
+        let mut noise_lp = get_lowpass(0.05, 0.7);
+
         (receiver, move |InputStreamCallbackArgs { buffer: data, .. }| {
             {
                 let (left, right) = time_ring_buffer.split_at_mut(fft_size);
@@ -102,12 +109,20 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
             analytic_buffer[1] = analytic_buffer[buffer_size + 1];
             analytic_buffer[2] = analytic_buffer[buffer_size + 2];
             let scale = fft_size as f32;
-            for (x, y) in complex_analytic_buffer[fft_size - buffer_size..].iter().zip(analytic_buffer[3..].iter_mut()) {
+            for (&x, y) in complex_analytic_buffer[fft_size - buffer_size..].iter().zip(analytic_buffer[3..].iter_mut()) {
+                let diff = x - prev_input; // vector
+                prev_input = x;
+
+                let angle = get_angle(diff, prev_diff).abs().log2().max(-1.0e12); // angular velocity (with processing)
+                prev_diff = diff;
+
+                let output = angle_lp(angle);
+
                 *y = Vec4 { vec: [
                     x.re / scale,
                     x.im / scale,
-                    0.0,
-                    0.0
+                    output.exp2(), // smoothed angular velocity
+                    noise_lp((angle - output).abs()), // average angular noise
                 ]};
             }
 
@@ -137,6 +152,41 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
     let stream = pa.open_non_blocking_stream(settings, callback)?;
 
     Ok((stream, buffers))
+}
+
+// angle between two complex numbers
+// scales into [0, 0.5]
+fn get_angle(v: Complex<f32>, u: Complex<f32>) -> f32 {
+    // 2 atan2(len(len(v)*u − len(u)*v), len(len(v)*u + len(u)*v))
+    let len_v_mul_u = v.norm_sqr().sqrt() * u;
+    let len_u_mul_v = u.norm_sqr().sqrt() * v;
+    let left = (len_v_mul_u - len_u_mul_v).norm_sqr().sqrt(); // this is positive
+    let right = (len_v_mul_u + len_u_mul_v).norm_sqr().sqrt(); // this is positive
+    left.atan2(right) / ::std::f32::consts::PI
+}
+
+// returns biquad lowpass filter
+fn get_lowpass(n: f32, q: f32) -> Box<FnMut(f32) -> f32> {
+    let k = (0.5 * n * ::std::f32::consts::PI).tan();
+    let norm = 1.0 / (1.0 + k / q + k * k);
+    let a0 = k * k * norm;
+    let a1 = 2.0 * a0;
+    let a2 = a0;
+    let b1 = 2.0 * (k * k - 1.0) * norm;
+    let b2 = (1.0 - k / q + k * k) * norm;
+
+    let mut w1 = 0.0;
+    let mut w2 = 0.0;
+    // \ y[n]=b_{0}w[n]+b_{1}w[n-1]+b_{2}w[n-2],
+    // where
+    // w[n]=x[n]-a_{1}w[n-1]-a_{2}w[n-2].
+    Box::new(move |x| {
+        let w0 = x - b1 * w1 - b2 * w2;
+        let y = a0 * w0 + a1 * w1 + a2 * w2;
+        w2 = w1;
+        w1 = w0;
+        y
+    })
 }
 
 // FIR analytical signal transform of length n with zero padding to be length m
@@ -186,4 +236,17 @@ fn test_analytic() {
     // -40hz is below -12db
     assert!(10.0 * freqs[m-1].norm_sqr().log(10.0) < -12.0);
     // actually these magnitudes are halved bc passband is +6db
+}
+
+#[test]
+fn test_lowpass() {
+    let mut lp = get_lowpass(0.5, 0.71);
+    println!();
+    println!("{}", lp(1.0));
+    for _ in 0..10 {
+        println!("{}", lp(0.0));
+    }
+    for _ in 0..10 {
+        assert!(lp(0.0).abs() < 0.5); // if it's unstable, it'll be huge
+    }
 }

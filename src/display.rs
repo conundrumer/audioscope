@@ -83,6 +83,7 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
         thinning,
         base_hue,
         colorize,
+        desaturation,
     } = config.uniforms;
 
     let mut index = 0;
@@ -115,6 +116,7 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
                 thinning: thinning,
                 base_hue: base_hue,
                 colorize: colorize,
+                desaturation: desaturation,
             };
             target.draw(&clear_rect_verts, &clear_rect_indices, &clear_program, &uniforms, &params).unwrap();
             target.draw(&ys, &indices, &wave_program, &uniforms, &params).unwrap();

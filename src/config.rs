@@ -15,6 +15,8 @@ pub struct AudioConfig {
     pub buffer_size: u32,
     pub num_buffers: usize,
     pub fft_size: u32,
+    pub cutoff: f32,
+    pub q: f32,
 }
 #[derive(Debug, RustcDecodable)]
 pub struct Uniforms {
@@ -23,6 +25,7 @@ pub struct Uniforms {
     pub thinning: f32,
     pub base_hue: f32,
     pub colorize: bool,
+    pub desaturation: f32,
 }
 #[derive(Debug, RustcDecodable)]
 pub struct DebugConfig {
