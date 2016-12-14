@@ -58,8 +58,8 @@ void main() {
 
     // thicknesses at p1 and p2
     float thickness_adjusted = thickness * mix(1.0, 4.0, thinning);
-    float thickness_a = min(thickness, thickness_adjusted / mix(1.0, n * length_a_, thinning));
-    float thickness_b = min(thickness, thickness_adjusted / mix(1.0, n * length_b_, thinning));
+    float thickness_a = max(1.0, min(thickness, thickness_adjusted / mix(1.0, n * length_a_, thinning)));
+    float thickness_b = max(1.0, min(thickness, thickness_adjusted / mix(1.0, n * length_b_, thinning)));
 
     // the length of the miter by projecting it onto normal and then inverse it
     // also bound the length

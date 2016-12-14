@@ -2,13 +2,13 @@
 buffer_size = 256
 num_buffers = 16
 fft_size = 1024
-cutoff = 0.1
+cutoff = 0.05
 q = 0.5
 
 [uniforms]
 decay = 0.3
-thickness = 3.0
-thinning = 0.0
+thickness = 4.0
+thinning = 0.5
 base_hue = 0.3333
 desaturation = 0.7
 colorize = true
