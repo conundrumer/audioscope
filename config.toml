@@ -1,16 +1,17 @@
 [audio]
 buffer_size = 256
-num_buffers = 16
+num_buffers = 32
 fft_size = 1024
 cutoff = 0.05
 q = 0.5
 
 [uniforms]
 decay = 0.3
-thickness = 4.0
-thinning = 0.5
-base_hue = 0.3333
-desaturation = 0.7
+thickness = 10.0
+min_thickness = 1.5
+thinning = 0.05
+base_hue = 0.0
+desaturation = 0.3
 colorize = true
 
 [debug]

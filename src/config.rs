@@ -22,6 +22,7 @@ pub struct AudioConfig {
 pub struct Uniforms {
     pub decay: f32,
     pub thickness: f32,
+    pub min_thickness: f32,
     pub thinning: f32,
     pub base_hue: f32,
     pub colorize: bool,

@@ -80,6 +80,7 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
     let Uniforms {
         decay,
         thickness,
+        min_thickness,
         thinning,
         base_hue,
         colorize,
@@ -113,6 +114,7 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
                 decay: decay,
                 window: [width as f32, height as f32],
                 thickness: thickness,
+                min_thickness: min_thickness,
                 thinning: thinning,
                 base_hue: base_hue,
                 colorize: colorize,

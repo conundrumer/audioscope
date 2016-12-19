@@ -3,6 +3,7 @@
 uniform uint n;
 uniform vec2 window;
 uniform float thickness;
+uniform float min_thickness;
 uniform float thinning;
 
 layout(lines_adjacency) in;
@@ -17,6 +18,11 @@ out float position;
 void emit_position(vec2 pos) {
     gl_Position = vec4(pos / window, 0.0, 1.0);
     EmitVertex();
+}
+
+float get_thickness(float len) {
+    float x = n * len;
+    return mix(min_thickness, thickness, 1.0 / (1.0 + thinning * x * x));
 }
 
 // heavily based on paul houx's miter polylines
@@ -57,9 +63,11 @@ void main() {
     vec2 miter_b_norm = normalize(n1 + n2);    // miter at end of current segment
 
     // thicknesses at p1 and p2
-    float thickness_adjusted = thickness * mix(1.0, 4.0, thinning);
-    float thickness_a = max(1.0, min(thickness, thickness_adjusted / mix(1.0, n * length_a_, thinning)));
-    float thickness_b = max(1.0, min(thickness, thickness_adjusted / mix(1.0, n * length_b_, thinning)));
+    // float thickness_adjusted = thickness * mix(1.0, thickness, thinning);
+    // float thickness_a = max(min_thickness, min(thickness, thickness_adjusted / mix(1.0, n * length_a_, thinning)));
+    // float thickness_b = max(min_thickness, min(thickness, thickness_adjusted / mix(1.0, n * length_b_, thinning)));
+    float thickness_a = get_thickness(length_a_);
+    float thickness_b = get_thickness(length_b_);
 
     // the length of the miter by projecting it onto normal and then inverse it
     // also bound the length
