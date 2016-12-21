@@ -1,3 +1,5 @@
+use std::{thread, time};
+
 use glium::{
     DisplayBuild,
     Surface,
@@ -88,10 +90,10 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
     } = config.uniforms;
 
     let mut index = 0;
-    loop {
+    let mut render_loop = || {
         for ev in display.poll_events() {
             match ev {
-                Event::Closed => return,
+                Event::Closed => return Action::Stop,
                 _ => {}
             }
         }
@@ -125,5 +127,38 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
         }
 
         target.finish().unwrap();
+
+        Action::Continue
+    };
+    match config.max_fps {
+        Some(fps) => limit_fps(fps, render_loop),
+        None => loop {
+            match render_loop() {
+                Action::Stop => return,
+                _ => {}
+            }
+        },
+    }
+}
+
+enum Action {
+    Continue,
+    Stop
+}
+
+fn limit_fps<F>(fps: u32, mut render_loop: F) where F: FnMut() -> Action {
+    let duration = time::Duration::new(0, 1_000_000_000 / fps);
+    loop {
+        let now = time::Instant::now();
+
+        match render_loop() {
+            Action::Stop => return,
+            _ => {}
+        }
+
+        let dt = now.elapsed();
+        if dt < duration {
+            thread::sleep(duration - dt);
+        }
     }
 }

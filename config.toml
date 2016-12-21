@@ -1,3 +1,6 @@
+# this is optional
+# max_fps=30
+
 [audio]
 buffer_size = 256
 num_buffers = 32
