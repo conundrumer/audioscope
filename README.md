@@ -22,4 +22,5 @@ Additional Documentation
 -------------
 
 [A high level explanation](https://medium.com/@conundrumer/a-perceptually-meaningful-audio-visualizer-ee72051781bc#.p87d5rrxg)
+
 [Project Trello](https://trello.com/b/je2p03G7/audioscope)
