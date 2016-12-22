@@ -10,6 +10,8 @@ Implemented views:
 Running
 -------
 
+Make sure you are using Rust Nightly.
+
 At the project root:
 
 `cargo run --release -- config.toml`
