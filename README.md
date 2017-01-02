@@ -20,6 +20,8 @@ Audioscope will use your default audio input device, which will most likely be a
 
 You can move the binary elsewhere, but currently, it dynamically loads the shaders, so `src/glsl` needs to be on the current path.
 
+If you're getting an error like `cannot find -lportaudio` while building, [you need to manually install portaudio](https://github.com/RustAudio/rust-portaudio#installation).
+
 Additional Documentation
 -------------
 
