@@ -1,0 +1,9 @@
+{
+  "name": "audioscope-js",
+  "version": "0.0.0",
+  "description": "audio visualizers true to the sound, for the browser",
+  "main": "index.js",
+  "repository": "https://github.com/conundrumer/audioscope",
+  "author": "david lu",
+  "license": "GPL"
+}
