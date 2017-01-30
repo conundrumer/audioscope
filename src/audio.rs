@@ -37,16 +37,16 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
     let cutoff = config.audio.cutoff;
     let q = config.audio.q;
 
-    let pa = PortAudio::new()?;
+    let pa = try!(PortAudio::new());
 
-    let def_input = pa.default_input_device()?;
-    let input_info = pa.device_info(def_input)?;
+    let def_input = try!(pa.default_input_device());
+    let input_info = try!(pa.device_info(def_input));
     println!("Default input device name: {}", input_info.name);
 
     let latency = input_info.default_low_input_latency;
     let input_params = StreamParameters::<f32>::new(def_input, CHANNELS, INTERLEAVED, latency);
 
-    pa.is_input_format_supported(input_params, SAMPLE_RATE)?;
+    try!(pa.is_input_format_supported(input_params, SAMPLE_RATE));
     let settings = InputStreamSettings::new(input_params, SAMPLE_RATE, buffer_size as u32);
 
     let mut buffers = Vec::with_capacity(num_buffers);
@@ -150,7 +150,7 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
             }
         });
     }
-    let stream = pa.open_non_blocking_stream(settings, callback)?;
+    let stream = try!(pa.open_non_blocking_stream(settings, callback));
 
     Ok((stream, buffers))
 }
