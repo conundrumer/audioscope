@@ -18,6 +18,7 @@ pub struct AudioConfig {
     pub fft_size: u32,
     pub cutoff: f32,
     pub q: f32,
+    pub gain: f32
 }
 #[derive(Debug, RustcDecodable)]
 pub struct Uniforms {

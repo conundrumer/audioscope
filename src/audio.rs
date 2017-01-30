@@ -63,6 +63,7 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
         let mut buffer_index = 0;
         let (sender, receiver) = mpsc::channel();
         let print_drop = config.debug.print_drop;
+        let gain = config.audio.gain;
         let buffers = buffers.clone();
         let mut analytic_buffer = vec![Vec4 {vec: [0.0, 0.0, 0.0, 0.0]}; buffer_size + 3];
 
@@ -92,7 +93,7 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
                     .zip(left[time_index..(time_index + buffer_size)].iter_mut())
                     .zip(right[time_index..(time_index + buffer_size)].iter_mut())
                 {
-                    let mono = Complex::new((x[0] + x[1]) / 2.0, 0.0);
+                    let mono = Complex::new(gain * (x[0] + x[1]) / 2.0, 0.0);
                     *t0 = mono;
                     *t1 = mono;
                 }
