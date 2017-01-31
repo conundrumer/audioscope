@@ -6,6 +6,10 @@ import fs from './line.frag'
 export default function createDraw (canvas, N, samples) {
   let gl = canvas.getContext('webgl')
 
+  if (gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS) === 0) {
+      window.alert('sorry, this app wont work on your device. try a different one, or complain to me to make it work on your device')
+  }
+
   let programInfo = twgl.createProgramInfo(gl, [vs, fs])
 
   let bufferInfo = twgl.createBufferInfoFromArrays(gl, {
