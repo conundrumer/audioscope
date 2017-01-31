@@ -7,7 +7,7 @@ export default function createDraw (canvas, N, samples) {
   let gl = canvas.getContext('webgl')
 
   if (gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS) === 0) {
-      window.alert('sorry, this app wont work on your device. try a different one, or complain to me to make it work on your device')
+    window.alert('sorry, this app wont work on your device. try a different one, or complain to me to make it work on your device')
   }
 
   let programInfo = twgl.createProgramInfo(gl, [vs, fs])
@@ -15,11 +15,14 @@ export default function createDraw (canvas, N, samples) {
   let bufferInfo = twgl.createBufferInfoFromArrays(gl, {
     index: {
       numComponents: 1,
-      data: Array(N).fill(0).map((_, i) => i)
+      data: Array(4 * N).fill(0).map((_, i) => i)
     }
   })
 
   gl.useProgram(programInfo.program)
+  // do fancy blending after figuring out better lines with no overlapping triangles
+  // gl.enable(gl.BLEND)
+  // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
   let texOptions = {
     width: N,
@@ -46,6 +49,6 @@ export default function createDraw (canvas, N, samples) {
     })
     twgl.bindFramebufferInfo(gl)
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
-    twgl.drawBufferInfo(gl, bufferInfo, gl.LINE_STRIP)
+    twgl.drawBufferInfo(gl, bufferInfo, gl.TRIANGLE_STRIP)
   }
 }
