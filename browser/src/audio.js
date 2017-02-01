@@ -10,9 +10,8 @@ function getMic (audio) {
   })
 }
 
-export default function createAudio () {
-  let N = 1024
-  let samples = new Float32Array(N * 2)
+export default function createAudio (N) {
+  let samples = new Float32Array(N)
 
   let context = new (window.AudioContext || window.webkitAudioContext)()
 
@@ -23,10 +22,11 @@ export default function createAudio () {
     let inputData = inputBuffer.getChannelData(0)
 
     for (let i = 0; i < inputBuffer.length; i++) {
-      samples[2 * i] = i / N
-      samples[2 * i + 1] = inputData[i]
+      samples[i] = inputData[i]
     }
   }
+
+  scriptNode.connect(context.destination)
 
   getMic(context).then(input => {
     input.connect(scriptNode)
@@ -35,13 +35,11 @@ export default function createAudio () {
     console.error(e)
   })
 
-  scriptNode.connect(context.destination)
-
   return {
     getContext () {
       return context
     },
-    getSamples () {
+    getTimeSamples () {
       return samples
     }
   }
