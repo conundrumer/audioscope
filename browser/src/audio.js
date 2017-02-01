@@ -1,3 +1,5 @@
+let AudioContext = window.AudioContext || window.webkitAudioContext
+
 function getMic (audio) {
   return new Promise((resolve, reject) => {
     const options = {
@@ -10,29 +12,33 @@ function getMic (audio) {
   })
 }
 
-export default function createAudio (N) {
-  let samples = new Float32Array(N)
-
-  let context = new (window.AudioContext || window.webkitAudioContext)()
-
-  let scriptNode = context.createScriptProcessor(N, 1, 1)
-  scriptNode.onaudioprocess = (e) => {
+function createBufferCopyNode (context, buffer) {
+  let copyNode = context.createScriptProcessor(buffer.length, 1, 1)
+  copyNode.onaudioprocess = (e) => {
     let inputBuffer = e.inputBuffer
 
     let inputData = inputBuffer.getChannelData(0)
 
     for (let i = 0; i < inputBuffer.length; i++) {
-      samples[i] = inputData[i]
+      buffer[i] = inputData[i]
     }
   }
+  return copyNode
+}
 
-  scriptNode.connect(context.destination)
+export default function createAudio (N) {
+  let samples = new Float32Array(N)
+  let context = new AudioContext()
+
+  let timeNode = createBufferCopyNode(context, samples)
+
+  timeNode.connect(context.destination)
 
   getMic(context).then(input => {
-    input.connect(scriptNode)
-  }).catch((e) => {
+    input.connect(timeNode)
+  }).catch(err => {
     window.alert('audio setup failed')
-    console.error(e)
+    console.error(err)
   })
 
   return {
