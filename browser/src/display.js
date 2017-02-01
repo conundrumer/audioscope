@@ -3,12 +3,13 @@ import twgl from 'twgl-base.js'
 import vs from './line.vert'
 import fs from './line.frag'
 
+const maxAmplitude = 4.0
 const B = (1 << 16) - 1
 const M = 4
 function updateTextureData (textureData, samplesX, samplesY, N) {
   for (let i = 0; i < N; i++) {
-    let x = 0.5 + 0.5 * samplesX[i]
-    let y = 0.5 + 0.5 * samplesY[i]
+    let x = Math.max(0, Math.min(2 * maxAmplitude, 0.5 + 0.5 * samplesX[i] / maxAmplitude))
+    let y = Math.max(0, Math.min(2 * maxAmplitude, 0.5 + 0.5 * samplesY[i] / maxAmplitude))
 
     x = (x * B) | 0
     y = (y * B) | 0
@@ -65,7 +66,9 @@ export default function createDisplay (canvas, N) {
 
       twgl.setBuffersAndAttributes(gl, programInfo, bufferInfo)
       twgl.setUniforms(programInfo, {
-        scale: [N, 1],
+        maxAmplitude,
+        window: [gl.canvas.width / window.devicePixelRatio, gl.canvas.height / window.devicePixelRatio],
+        sampleScale: [texOptions.width, texOptions.height],
         samples: tex
       })
       twgl.bindFramebufferInfo(gl)

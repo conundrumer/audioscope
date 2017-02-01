@@ -6,15 +6,16 @@ let canvas = document.getElementById('c')
 let N = 512
 
 let audio = createAudio(N)
-const xAxis = Array(N).fill().map((_, i) => (i / (N - 1)) * 2.0 - 1.0)
+// const xAxis = Array(N).fill().map((_, i) => (i / (N - 1)) * 2.0 - 1.0)
 
 let display = createDisplay(canvas, N)
 
 let timer = null;
 (function loop () {
-  let samples = audio.getTimeSamples()
+  let samplesX = audio.getTimeSamples()
+  let samplesY = audio.getQuadSamples()
 
-  display.draw(xAxis, samples)
+  display.draw(samplesX, samplesY)
   timer = window.requestAnimationFrame(loop)
   // timer = setTimeout(loop, 1000)
 })()
