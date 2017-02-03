@@ -1,34 +1,4 @@
-// http://stackoverflow.com/questions/4723213/detect-http-or-https-then-force-https-in-javascript
-if (document.location.hostname !== 'localhost' && window.location.protocol !== 'https:') {
-  window.location.href = 'https:' + window.location.href.substring(window.location.protocol.length)
-}
-let AudioContext = window.AudioContext || window.webkitAudioContext
-navigator.getUserMedia = (navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia)
-
-function getMic (audio) {
-  return new Promise((resolve, reject) => {
-    const options = {
-      video: false,
-      audio: {
-        optional: [
-          {channelCount: 2}, // this doesn't work yet, only takes in summed mono
-          {echoCancellation: false},
-          {mozAutoGainControl: false},
-          {mozNoiseSuppression: false},
-          {googEchoCancellation: false},
-          {googAutoGainControl: false},
-          {googNoiseSuppression: false},
-          {googHighpassFilter: false}
-        ]
-      }
-    }
-    const onGetUserMedia = (stream) => {
-      let input = audio.createMediaStreamSource(stream)
-      resolve(input)
-    }
-    navigator.getUserMedia(options, onGetUserMedia, reject)
-  })
-}
+import getMic from './getMic'
 
 // const FFT_SIZE = 1024 // guessing webaudio will choose this length
 function createHilbertFilter (context, N) {
@@ -65,12 +35,43 @@ function createHilbertFilter (context, N) {
   return [delay, hilbert]
 }
 
-function createBufferCopy (context, buffer) {
-  let copyNode = context.createScriptProcessor(buffer.length, 1, 1)
-  copyNode.onaudioprocess = (e) => {
-    e.inputBuffer.copyFromChannel(buffer, 0)
+const TIME_RE = 0
+const TIME_IM = 1
+const NUM_CHANNELS = 2
+export default function createAudio (context, N, onAudio) {
+  let buffer = {
+    time: {
+      re: new Float32Array(N),
+      im: new Float32Array(N)
+    }
   }
-  return copyNode
+
+  let [delay, hilbert] = createHilbertFilter(context, N)
+
+  let processor = context.createScriptProcessor(N, NUM_CHANNELS, 1)
+  processor.onaudioprocess = (e) => {
+    e.inputBuffer.copyFromChannel(buffer.time.re, TIME_RE)
+    e.inputBuffer.copyFromChannel(buffer.time.im, TIME_IM)
+    onAudio(buffer)
+  }
+  let merger = context.createChannelMerger(2)
+
+  delay.connect(merger, 0, TIME_RE)
+  hilbert.connect(merger, 0, TIME_IM)
+  merger.connect(processor)
+  processor.connect(context.destination)
+
+  getMic().then(stream => {
+    let input = context.createMediaStreamSource(stream)
+    input.connect(delay)
+    input.connect(hilbert)
+  }).catch(err => {
+    window.alert('audio setup failed')
+    console.error(err)
+  })
+
+  return {
+  }
 }
 
 // function createMidSide (context, N) {
@@ -86,38 +87,3 @@ function createBufferCopy (context, buffer) {
 //     }
 //   }
 // }
-
-export default function createAudio (N) {
-  let context = new AudioContext()
-
-  let timeSamples = new Float32Array(N)
-  let quadSamples = new Float32Array(N)
-
-  let [delay, hilbert] = createHilbertFilter(context, N)
-  let time = createBufferCopy(context, timeSamples)
-  let quad = createBufferCopy(context, quadSamples)
-
-  getMic(context).then(input => {
-    input.connect(delay)
-    input.connect(hilbert)
-    hilbert.connect(time)
-    delay.connect(quad)
-    time.connect(context.destination)
-    quad.connect(context.destination)
-  }).catch(err => {
-    window.alert('audio setup failed')
-    console.error(err)
-  })
-
-  return {
-    getContext () {
-      return context
-    },
-    getTimeSamples () {
-      return timeSamples
-    },
-    getQuadSamples () {
-      return quadSamples
-    }
-  }
-}

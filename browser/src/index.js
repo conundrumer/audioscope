@@ -2,20 +2,24 @@ import createAudio from './audio'
 import createDisplay from './display'
 
 let canvas = document.getElementById('c')
+let gl = canvas.getContext('webgl')
 
-let N = 512
+let AudioContext = window.AudioContext || window.webkitAudioContext
+let audioContext = new AudioContext()
 
-let audio = createAudio(N)
+let N = 256
+let numBuffers = 32
+
+let display = createDisplay(gl, N, numBuffers)
+
+createAudio(audioContext, N, buffer => {
+  display.update(buffer.time.re, buffer.time.im)
+})
 // const xAxis = Array(N).fill().map((_, i) => (i / (N - 1)) * 2.0 - 1.0)
-
-let display = createDisplay(canvas, N)
 
 let timer = null;
 (function loop () {
-  let samplesX = audio.getTimeSamples()
-  let samplesY = audio.getQuadSamples()
-
-  display.draw(samplesX, samplesY)
+  display.draw()
   timer = window.requestAnimationFrame(loop)
   // timer = setTimeout(loop, 1000)
 })()
@@ -29,6 +33,6 @@ if (module.hot) {
   module.hot.dispose(() => {
     window.cancelAnimationFrame(timer)
     // clearTimeout(timer)
-    audio.getContext().close()
+    audioContext.close()
   })
 }

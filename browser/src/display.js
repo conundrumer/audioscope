@@ -1,7 +1,10 @@
 import twgl from 'twgl-base.js'
 
-import vs from './line.vert'
-import fs from './line.frag'
+import lineVert from './line.vert'
+import lineFrag from './line.frag'
+import copyVert from './copy.vert'
+import copyFrag from './copy.frag'
+import bufferFrag from './buffer.frag'
 
 const maxAmplitude = 4.0
 const B = (1 << 16) - 1
@@ -22,9 +25,39 @@ function updateTextureData (textureData, samplesX, samplesY, N) {
   }
 }
 
-export default function createDisplay (canvas, N) {
-  let gl = canvas.getContext('webgl')
+function createSwapBuffer (gl, width, height) {
+  let textureData = new Uint8Array(width * height * M)
 
+  let textureOptions = {
+    width: width,
+    height: height,
+    mag: gl.NEAREST,
+    min: gl.LINEAR,
+    wrap: gl.CLAMP_TO_EDGE,
+    src: textureData
+  }
+  let textureFront = twgl.createTexture(gl, textureOptions)
+  let textureBack = twgl.createTexture(gl, textureOptions)
+  let fbFront = twgl.createFramebufferInfo(gl, [{attachment: textureFront}])
+  let fbBack = twgl.createFramebufferInfo(gl, [{attachment: textureBack}])
+
+  return {
+    getTexture () {
+      return textureFront
+    },
+    getNextFramebufferInfo () {
+      return fbBack
+    },
+    swap () {
+      [textureFront, textureBack] = [textureBack, textureFront];
+      [fbFront, fbBack] = [fbBack, fbFront]
+    }
+  }
+}
+
+const K = 1024
+
+export default function createDisplay (gl, N, numBuffers) {
   if (gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS) === 0) {
     window.alert('sorry, this app wont work on your device. try a different one, or complain to me to make it work on your device')
   }
@@ -33,14 +66,19 @@ export default function createDisplay (canvas, N) {
   // gl.enable(gl.BLEND)
   // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
-  let programInfo = twgl.createProgramInfo(gl, [vs, fs])
-  gl.useProgram(programInfo.program)
+  let lineProgramInfo = twgl.createProgramInfo(gl, [lineVert, lineFrag])
+  let bufferProgramInfo = twgl.createProgramInfo(gl, [copyVert, bufferFrag])
+  // let copyProgramInfo = twgl.createProgramInfo(gl, [copyVert, copyFrag])
 
-  let bufferInfo = twgl.createBufferInfoFromArrays(gl, {
+  let indexBufferInfo = twgl.createBufferInfoFromArrays(gl, {
     index: {
       numComponents: 1,
-      data: Array(4 * N).fill(0).map((_, i) => i)
+      // data: Array(4 * 3).fill().map((_, i) => i + M * 255)
+      data: Array(4 * K).fill(0).map((_, i) => i + M).reverse()
     }
+  })
+  let quadBufferInfo = twgl.createBufferInfoFromArrays(gl, {
+    position: { numComponents: 2, data: [1, 1, 1, -1, -1, 1, -1, -1] }
   })
 
   let textureData = new Uint8Array(N * M)
@@ -54,26 +92,64 @@ export default function createDisplay (canvas, N) {
   }
   let tex = twgl.createTexture(gl, texOptions)
 
-  return {
-    draw (samplesX, samplesY) {
-      twgl.resizeCanvasToDisplaySize(gl.canvas, window.devicePixelRatio)
+  let swapBuffers = createSwapBuffer(gl, N, numBuffers)
 
-      gl.clearColor(0, 0, 0, 1)
+  function render ({bufferInfo, programInfo, uniforms, viewport, clear = null, framebufferInfo = null}) {
+    gl.useProgram(programInfo.program)
+    twgl.setBuffersAndAttributes(gl, programInfo, bufferInfo)
+    twgl.setUniforms(programInfo, uniforms)
+    twgl.bindFramebufferInfo(gl, framebufferInfo)
+    gl.viewport(...viewport)
+    if (clear) {
+      gl.clearColor(...clear)
       gl.clear(gl.COLOR_BUFFER_BIT)
+    }
+    twgl.drawBufferInfo(gl, bufferInfo, gl.TRIANGLE_STRIP)
+  }
 
+  return {
+    update (samplesX, samplesY) {
       updateTextureData(textureData, samplesX, samplesY, N)
       twgl.setTextureFromArray(gl, tex, textureData, texOptions)
-
-      twgl.setBuffersAndAttributes(gl, programInfo, bufferInfo)
-      twgl.setUniforms(programInfo, {
-        maxAmplitude,
-        window: [gl.canvas.width / window.devicePixelRatio, gl.canvas.height / window.devicePixelRatio],
-        sampleScale: [texOptions.width, texOptions.height],
-        samples: tex
+      render({
+        bufferInfo: quadBufferInfo,
+        programInfo: bufferProgramInfo,
+        uniforms: {
+          scale: [N, numBuffers],
+          state: swapBuffers.getTexture(),
+          samples: tex
+        },
+        framebufferInfo: swapBuffers.getNextFramebufferInfo(),
+        viewport: [0, 0, N, numBuffers]
       })
-      twgl.bindFramebufferInfo(gl)
-      gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
-      twgl.drawBufferInfo(gl, bufferInfo, gl.TRIANGLE_STRIP)
+      swapBuffers.swap()
+    },
+    draw () {
+      twgl.resizeCanvasToDisplaySize(gl.canvas, window.devicePixelRatio)
+
+      // debug
+      // render({
+      //   bufferInfo: quadBufferInfo,
+      //   programInfo: copyProgramInfo,
+      //   uniforms: {
+      //     window: [gl.canvas.width, gl.canvas.height],
+      //     sampleBuffer: swapBuffers.getTexture()
+      //   },
+      //   viewport: [0, 0, gl.canvas.width, gl.canvas.height]
+      // })
+
+      render({
+        clear: [0, 0, 0, 1],
+        bufferInfo: indexBufferInfo,
+        programInfo: lineProgramInfo,
+        uniforms: {
+          maxAmplitude,
+          window: [gl.canvas.width / window.devicePixelRatio, gl.canvas.height / window.devicePixelRatio],
+          sampleScale: [N, numBuffers],
+          sampleBuffer: swapBuffers.getTexture()
+        },
+        viewport: [0, 0, gl.canvas.width, gl.canvas.height]
+      })
     }
   }
 }

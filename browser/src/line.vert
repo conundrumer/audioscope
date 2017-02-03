@@ -2,10 +2,12 @@ precision mediump float;
 
 uniform float maxAmplitude;
 uniform vec2 window;
-uniform sampler2D samples;
+uniform sampler2D sampleBuffer;
 uniform vec2 sampleScale;
 
 attribute float index;
+
+varying float idx;
 
 float decode(vec2 c) {
     float unscaled = (c.x * 255.0 * 256.0 + c.y * 255.0) / (256.0 * 256.0 - 1.0);
@@ -13,7 +15,11 @@ float decode(vec2 c) {
 }
 
 vec2 get_sample(int i) {
-    vec4 sample = texture2D(samples, vec2(i, 0.0) / sampleScale);
+    int width = int(sampleScale.x + 0.5);
+    int height = int(sampleScale.y + 0.5);
+    int y = i / width;
+    int x = i - y * width;
+    vec4 sample = texture2D(sampleBuffer, (0.5 + vec2(width - x - 1, height - y - 1)) / sampleScale);
     return vec2(decode(sample.rg), decode(sample.ba));
 }
 
@@ -23,6 +29,7 @@ const float t_flat = 0.005;
 
 void main() {
     int i = int(index) / 4;
+    idx = float(i) / sampleScale.x;
     int j = int(index) - 4 * i;
 
     vec2 pos = get_sample(i);
@@ -51,7 +58,7 @@ void main() {
     pos = pos + thickness / side * normalize(vec2(-delta.y, delta.x));
 
 
-    if (window.x < window.y) {
+    if (window.x > window.y) {
         pos = pos.yx;
     }
     gl_Position = vec4(pos / window * side, 0.0, 1.0);
