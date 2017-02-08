@@ -9,6 +9,7 @@ import bufferFrag from './buffer.frag'
 const maxAmplitude = 4.0
 const B = (1 << 16) - 1
 const M = 4
+const X = 4
 function updateTextureData (textureData, samplesX, samplesY, N) {
   for (let i = 0; i < N; i++) {
     let x = Math.max(0, Math.min(2 * maxAmplitude, 0.5 + 0.5 * samplesX[i] / maxAmplitude))
@@ -63,7 +64,7 @@ export default function createDisplay (gl, N, numBuffers) {
   }
 
   // do fancy blending after figuring out better lines with no overlapping triangles
-  // gl.enable(gl.BLEND)
+  gl.enable(gl.BLEND)
   // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
   let lineProgramInfo = twgl.createProgramInfo(gl, [lineVert, lineFrag])
@@ -74,14 +75,14 @@ export default function createDisplay (gl, N, numBuffers) {
     index: {
       numComponents: 1,
       // data: Array(4 * 3).fill().map((_, i) => i + M * 255)
-      data: Array(4 * K).fill(0).map((_, i) => i + M).reverse()
+      data: Array(X * K).fill(0).map((_, i) => i + X).reverse()
     }
   })
   let quadBufferInfo = twgl.createBufferInfoFromArrays(gl, {
     position: { numComponents: 2, data: [1, 1, 1, -1, -1, 1, -1, -1] }
   })
 
-  let textureData = new Uint8Array(N * M)
+  let textureData = new Uint8Array(N * X)
   let texOptions = {
     width: N,
     height: 1,
@@ -94,7 +95,7 @@ export default function createDisplay (gl, N, numBuffers) {
 
   let swapBuffers = createSwapBuffer(gl, N, numBuffers)
 
-  function render ({bufferInfo, programInfo, uniforms, viewport, clear = null, framebufferInfo = null}) {
+  function render ({bufferInfo, programInfo, uniforms, viewport, clear = null, framebufferInfo = null, lines = false}) {
     gl.useProgram(programInfo.program)
     twgl.setBuffersAndAttributes(gl, programInfo, bufferInfo)
     twgl.setUniforms(programInfo, uniforms)
@@ -104,11 +105,13 @@ export default function createDisplay (gl, N, numBuffers) {
       gl.clearColor(...clear)
       gl.clear(gl.COLOR_BUFFER_BIT)
     }
-    twgl.drawBufferInfo(gl, bufferInfo, gl.TRIANGLE_STRIP)
+    twgl.drawBufferInfo(gl, bufferInfo, lines ? gl.LINE_STRIP : gl.TRIANGLE_STRIP)
   }
 
   return {
     update (samplesX, samplesY) {
+      gl.blendFunc(gl.ONE, gl.ZERO)
+
       updateTextureData(textureData, samplesX, samplesY, N)
       twgl.setTextureFromArray(gl, tex, textureData, texOptions)
       render({
@@ -138,8 +141,11 @@ export default function createDisplay (gl, N, numBuffers) {
       //   viewport: [0, 0, gl.canvas.width, gl.canvas.height]
       // })
 
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE)
+
       render({
         clear: [0, 0, 0, 1],
+        lines: true,
         bufferInfo: indexBufferInfo,
         programInfo: lineProgramInfo,
         uniforms: {

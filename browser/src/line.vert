@@ -28,9 +28,10 @@ const float t_min = 1.0;
 const float t_flat = 0.005;
 
 void main() {
-    int i = int(index) / 4;
+    int i = int(index);
+    // int i = int(index) / 4;
     idx = float(i) / sampleScale.x;
-    int j = int(index) - 4 * i;
+    int j = int(index) - i;
 
     vec2 pos = get_sample(i);
     vec2 prev_pos = get_sample(i - 1);
@@ -55,7 +56,7 @@ void main() {
 
     float side = min(window.x, window.y);
 
-    pos = pos + thickness / side * normalize(vec2(-delta.y, delta.x));
+    // pos = pos + thickness / side * normalize(vec2(-delta.y, delta.x));
 
 
     if (window.x > window.y) {
