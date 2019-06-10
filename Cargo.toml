@@ -1,12 +1,13 @@
 [package]
 name = "audioscope"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["delu <davidelu93@gmail.com>"]
 
 [dependencies]
-toml = "*"
-rustc-serialize = "*"
-glium = "*"
-portaudio = "*"
-num = "*"
-rustfft = { git = "https://github.com/awelkie/RustFFT" }
+toml = "0.2.1"
+rustc-serialize = "0.3.24"
+glium = "0.17.1"
+portaudio = "0.7.0"
+num = "0.1.36"
+rustfft = { git = "https://github.com/awelkie/RustFFT" , rev = "6f4aca61d3177b86021343a70f7fb1c8d7a7ad60" }
+winit = "0.7.6"
