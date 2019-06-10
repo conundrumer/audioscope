@@ -1,7 +1,7 @@
 use std::{thread, time};
 
 use glium::{
-    DisplayBuild,
+    Display,
     Surface,
     VertexBuffer,
     Program,
@@ -13,10 +13,10 @@ use glium::index::{
     PrimitiveType
 };
 use glium::glutin::{
+    ContextBuilder,
+    EventsLoop,
     WindowBuilder,
-    Event,
 };
-
 use file_loader::load_from_file;
 use config::{
     Config,
@@ -46,10 +46,12 @@ implement_vertex!(Vec4, vec);
 
 
 pub fn display(config: &Config, buffers: MultiBuffer) {
-    let display = WindowBuilder::new()
-        // .with_multisampling(4) // THIS IS LAGGY!
-        .with_vsync()
-        .build_glium().unwrap();
+    let mut events_loop = EventsLoop::new();
+    let window = WindowBuilder::new()
+        .with_dimensions(1024, 768)
+        .with_title("audioscope");
+    let context = ContextBuilder::new();
+    let display = Display::new(window, context, &events_loop).unwrap();
 
     let n = config.audio.buffer_size + 3;
     let mut ys_data: Vec<_> = (0..n).map(|_| Vec4 { vec: [0.0, 0.0, 0.0, 0.0] }).collect();
@@ -91,11 +93,16 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
 
     let mut index = 0;
     let mut render_loop = || {
-        for ev in display.poll_events() {
-            match ev {
-                Event::Closed => return Action::Stop,
+        
+        let mut action_stop = false;
+        events_loop.poll_events(|event|{
+            match event {
+                winit::Event::WindowEvent { event: winit::WindowEvent::Closed, .. } => { action_stop = true },
                 _ => {}
             }
+        });
+        if action_stop {
+            return Action::Stop
         }
 
         let mut target = display.draw();
@@ -108,7 +115,7 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
             ys.write(&ys_data);
             index = (index + 1) % buffers.len();
 
-            let window = display.get_window().unwrap();
+            let window = display.gl_window();
             let (width, height) = window.get_inner_size_points().unwrap();
 
             let uniforms = uniform! {
