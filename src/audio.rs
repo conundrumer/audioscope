@@ -13,6 +13,7 @@ use portaudio::{
     Continue,
 };
 use num::complex::Complex;
+use rustfft::algorithm::Radix4;
 use rustfft::FFT;
 
 use config::Config;
@@ -78,8 +79,8 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
             n -= 1;
         }
         let analytic = make_analytic(n, fft_size);
-        let mut fft = FFT::new(fft_size, false);
-        let mut ifft = FFT::new(fft_size, true);
+        let mut fft = Radix4::new(fft_size, false);
+        let mut ifft = Radix4::new(fft_size, true);
 
         let mut prev_input = Complex::new(0.0, 0.0); // sample n-1
         let mut prev_diff = Complex::new(0.0, 0.0); // sample n-1 - sample n-2
@@ -99,12 +100,12 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
                 }
             }
             time_index = (time_index + buffer_size as usize) % fft_size;
-            fft.process(&time_ring_buffer[time_index..time_index + fft_size], &mut complex_freq_buffer[..]);
+            fft.process(&mut time_ring_buffer[time_index..time_index + fft_size], &mut complex_freq_buffer[..]);
 
             for (x, y) in analytic.iter().zip(complex_freq_buffer.iter_mut()) {
                 *y = *x * *y;
             }
-            ifft.process(&complex_freq_buffer[..], &mut complex_analytic_buffer[..]);
+            ifft.process(&mut complex_freq_buffer[..], &mut complex_analytic_buffer[..]);
 
             analytic_buffer[0] = analytic_buffer[buffer_size];
             analytic_buffer[1] = analytic_buffer[buffer_size + 1];
@@ -198,7 +199,7 @@ fn make_analytic(n: usize, m: usize) -> Vec<Complex<f32>> {
     assert_eq!(n % 2, 1, "n should be odd");
     assert!(n <= m, "n should be less than or equal to m");
     // let a = 2.0 / n as f32;
-    let mut fft = FFT::new(m, false);
+    let mut fft = Radix4::new(m, false);
 
     let mut impulse = vec![Complex::new(0.0, 0.0); m];
     let mut freqs = impulse.clone();
@@ -221,7 +222,7 @@ fn make_analytic(n: usize, m: usize) -> Vec<Complex<f32>> {
         impulse[mid + i] = impulse[mid + i].scale(k);
         impulse[mid - i] = impulse[mid - i].scale(k);
     }
-    fft.process(&impulse, &mut freqs);
+    fft.process(&mut impulse, &mut freqs);
     freqs
 }
 
