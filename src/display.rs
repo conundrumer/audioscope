@@ -11,8 +11,11 @@ use glium::index::{
 };
 use glium::glutin::window::{
     WindowBuilder,
+    Fullscreen,
 };
 use glium::glutin::event::{
+    ElementState,
+    VirtualKeyCode,
     Event,
     WindowEvent,
     StartCause,
@@ -56,6 +59,12 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
         .with_vsync(true);
 
     let display = glium::Display::new(wb, cb, &el).unwrap();
+
+    if config.fullscreen.unwrap() {
+        let monitor_handle = display.gl_window().window().available_monitors().next().unwrap();
+        let fs = Fullscreen::Borderless(Some(monitor_handle));
+        display.gl_window().window().set_fullscreen(Some(fs));
+    }
 
     let n = config.audio.buffer_size + 3;
     let mut ys_data: Vec<_> = (0..n).map(|_| Vec4 { vec: [0.0, 0.0, 0.0, 0.0] }).collect();
@@ -108,6 +117,14 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
                 WindowEvent::CloseRequested => {
                     *control_flow = ControlFlow::Exit;
                     return;
+                },
+                WindowEvent::KeyboardInput { input, .. } => {
+                    if let ElementState::Pressed = input.state {
+                        if let Some(VirtualKeyCode::Escape) = input.virtual_keycode {
+							*control_flow = ControlFlow::Exit;
+		                    return;
+                        }
+                    }
                 },
                 _ => return,
             },
