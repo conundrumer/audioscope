@@ -1,5 +1,6 @@
 # this is optional
-# max_fps=30
+max_fps = 30
+fullscreen = false
 
 [audio]
 buffer_size = 256

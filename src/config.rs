@@ -6,6 +6,7 @@ use file_loader::load_from_file;
 
 #[derive(Debug, RustcDecodable)]
 pub struct Config {
+    pub fullscreen: Option<bool>,
     pub max_fps: Option<u32>,
     pub uniforms: Uniforms,
     pub audio: AudioConfig,

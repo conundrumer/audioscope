@@ -13,6 +13,7 @@ use portaudio::{
     Continue,
 };
 use num::complex::Complex;
+use rustfft::algorithm::Radix4;
 use rustfft::FFT;
 
 use config::Config;
@@ -37,16 +38,16 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
     let cutoff = config.audio.cutoff;
     let q = config.audio.q;
 
-    let pa = try!(PortAudio::new());
+    let pa = PortAudio::new()?;
 
-    let def_input = try!(pa.default_input_device());
-    let input_info = try!(pa.device_info(def_input));
+    let def_input = pa.default_input_device()?;
+    let input_info = pa.device_info(def_input)?;
     println!("Default input device name: {}", input_info.name);
 
     let latency = input_info.default_low_input_latency;
     let input_params = StreamParameters::<f32>::new(def_input, CHANNELS, INTERLEAVED, latency);
 
-    try!(pa.is_input_format_supported(input_params, SAMPLE_RATE));
+    pa.is_input_format_supported(input_params, SAMPLE_RATE)?;
     let settings = InputStreamSettings::new(input_params, SAMPLE_RATE, buffer_size as u32);
 
     let mut buffers = Vec::with_capacity(num_buffers);
@@ -78,8 +79,8 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
             n -= 1;
         }
         let analytic = make_analytic(n, fft_size);
-        let mut fft = FFT::new(fft_size, false);
-        let mut ifft = FFT::new(fft_size, true);
+        let fft = Radix4::new(fft_size, false);
+        let ifft = Radix4::new(fft_size, true);
 
         let mut prev_input = Complex::new(0.0, 0.0); // sample n-1
         let mut prev_diff = Complex::new(0.0, 0.0); // sample n-1 - sample n-2
@@ -99,12 +100,12 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
                 }
             }
             time_index = (time_index + buffer_size as usize) % fft_size;
-            fft.process(&time_ring_buffer[time_index..time_index + fft_size], &mut complex_freq_buffer[..]);
+            fft.process(&mut time_ring_buffer[time_index..time_index + fft_size], &mut complex_freq_buffer[..]);
 
             for (x, y) in analytic.iter().zip(complex_freq_buffer.iter_mut()) {
                 *y = *x * *y;
             }
-            ifft.process(&complex_freq_buffer[..], &mut complex_analytic_buffer[..]);
+            ifft.process(&mut complex_freq_buffer[..], &mut complex_analytic_buffer[..]);
 
             analytic_buffer[0] = analytic_buffer[buffer_size];
             analytic_buffer[1] = analytic_buffer[buffer_size + 1];
@@ -150,7 +151,7 @@ pub fn init_audio(config: &Config) -> Result<(PortAudioStream, MultiBuffer), por
             }
         });
     }
-    let stream = try!(pa.open_non_blocking_stream(settings, callback));
+    let stream = pa.open_non_blocking_stream(settings, callback)?;
 
     Ok((stream, buffers))
 }
@@ -167,7 +168,7 @@ fn get_angle(v: Complex<f32>, u: Complex<f32>) -> f32 {
 }
 
 // returns biquad lowpass filter
-fn get_lowpass(n: f32, q: f32) -> Box<FnMut(f32) -> f32> {
+fn get_lowpass(n: f32, q: f32) -> Box<dyn FnMut(f32) -> f32> {
     let k = (0.5 * n * ::std::f32::consts::PI).tan();
     let norm = 1.0 / (1.0 + k / q + k * k);
     let a0 = k * k * norm;
@@ -198,7 +199,7 @@ fn make_analytic(n: usize, m: usize) -> Vec<Complex<f32>> {
     assert_eq!(n % 2, 1, "n should be odd");
     assert!(n <= m, "n should be less than or equal to m");
     // let a = 2.0 / n as f32;
-    let mut fft = FFT::new(m, false);
+    let fft = Radix4::new(m, false);
 
     let mut impulse = vec![Complex::new(0.0, 0.0); m];
     let mut freqs = impulse.clone();
@@ -221,7 +222,7 @@ fn make_analytic(n: usize, m: usize) -> Vec<Complex<f32>> {
         impulse[mid + i] = impulse[mid + i].scale(k);
         impulse[mid - i] = impulse[mid - i].scale(k);
     }
-    fft.process(&impulse, &mut freqs);
+    fft.process(&mut impulse, &mut freqs);
     freqs
 }
 
