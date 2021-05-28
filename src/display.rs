@@ -1,7 +1,4 @@
-use std::{thread, time};
-
 use glium::{
-    DisplayBuild,
     Surface,
     VertexBuffer,
     Program,
@@ -12,10 +9,15 @@ use glium::index::{
     NoIndices,
     PrimitiveType
 };
-use glium::glutin::{
+use glium::glutin::window::{
     WindowBuilder,
-    Event,
 };
+use glium::glutin::event::{
+    Event,
+    WindowEvent,
+    StartCause,
+};
+use glium::glutin::event_loop::ControlFlow;
 
 use file_loader::load_from_file;
 use config::{
@@ -46,10 +48,14 @@ implement_vertex!(Vec4, vec);
 
 
 pub fn display(config: &Config, buffers: MultiBuffer) {
-    let display = WindowBuilder::new()
-        // .with_multisampling(4) // THIS IS LAGGY!
-        .with_vsync()
-        .build_glium().unwrap();
+    let el = glium::glutin::event_loop::EventLoop::new();
+
+    let wb = WindowBuilder::new();
+
+    let cb = glium::glutin::ContextBuilder::new()
+        .with_vsync(true);
+
+    let display = glium::Display::new(wb, cb, &el).unwrap();
 
     let n = config.audio.buffer_size + 3;
     let mut ys_data: Vec<_> = (0..n).map(|_| Vec4 { vec: [0.0, 0.0, 0.0, 0.0] }).collect();
@@ -62,7 +68,7 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
         Some(&load_from_file("src/glsl/line.geom"))
     ).unwrap();
 
-    let clear_rect = [[-1.0, -1.0], [-1.0, 1.0], [1.0, -1.0], [1.0, 1.0]].into_iter()
+    let clear_rect = [[-1.0, -1.0], [-1.0, 1.0], [1.0, -1.0], [1.0, 1.0]].iter()
         .map(|&v| Vec2 { vec: v })
         .collect::<Vec<_>>();
     let clear_rect_verts = VertexBuffer::new(&display, &clear_rect).unwrap();
@@ -89,17 +95,35 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
         desaturation,
     } = config.uniforms;
 
-    let mut index = 0;
-    let mut render_loop = || {
-        for ev in display.poll_events() {
-            match ev {
-                Event::Closed => return Action::Stop,
-                _ => {}
-            }
+    let frame_wait_time = match config.max_fps {
+        Some(fps) => std::time::Duration::new(0, 1_000_000_000 / fps),
+        None => std::time::Duration::from_nanos(0),
+    };
+
+    el.run(move |event, _, control_flow| {
+        let mut index = 0;
+
+        match event {
+            Event::WindowEvent { event, .. } => match event {
+                WindowEvent::CloseRequested => {
+                    *control_flow = ControlFlow::Exit;
+                    return;
+                },
+                _ => return,
+            },
+            Event::NewEvents(cause) => match cause {
+                StartCause::ResumeTimeReached { .. } => (),
+                StartCause::Init => (),
+                _ => return,
+            },
+            _ => return,
         }
 
+        let next_frame_time = std::time::Instant::now() + frame_wait_time;
+        *control_flow = ControlFlow::WaitUntil(next_frame_time);
+
         let mut target = display.draw();
-        while { !buffers[index].lock().unwrap().rendered } {
+        while !buffers[index].lock().unwrap().rendered {
             {
                 let mut buffer = buffers[index].lock().unwrap();
                 ys_data.copy_from_slice(&buffer.analytic);
@@ -108,13 +132,12 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
             ys.write(&ys_data);
             index = (index + 1) % buffers.len();
 
-            let window = display.get_window().unwrap();
-            let (width, height) = window.get_inner_size_points().unwrap();
+            let window_size = display.gl_window().window().inner_size();
 
             let uniforms = uniform! {
                 n: n,
                 decay: decay,
-                window: [width as f32, height as f32],
+                window: [window_size.width as f32, window_size.height as f32],
                 thickness: thickness,
                 min_thickness: min_thickness,
                 thinning: thinning,
@@ -127,38 +150,5 @@ pub fn display(config: &Config, buffers: MultiBuffer) {
         }
 
         target.finish().unwrap();
-
-        Action::Continue
-    };
-    match config.max_fps {
-        Some(fps) => limit_fps(fps, render_loop),
-        None => loop {
-            match render_loop() {
-                Action::Stop => return,
-                _ => {}
-            }
-        },
-    }
-}
-
-enum Action {
-    Continue,
-    Stop
-}
-
-fn limit_fps<F>(fps: u32, mut render_loop: F) where F: FnMut() -> Action {
-    let duration = time::Duration::new(0, 1_000_000_000 / fps);
-    loop {
-        let now = time::Instant::now();
-
-        match render_loop() {
-            Action::Stop => return,
-            _ => {}
-        }
-
-        let dt = now.elapsed();
-        if dt < duration {
-            thread::sleep(duration - dt);
-        }
-    }
+    });
 }
