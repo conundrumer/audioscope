@@ -4,9 +4,9 @@ version = "0.1.0"
 authors = ["delu <davidelu93@gmail.com>"]
 
 [dependencies]
-toml = "*"
+toml = "0.2.1"
 rustc-serialize = "*"
-glium = "*"
-portaudio = "*"
+glium = "0.29.1"
+portaudio = "0.7.0"
 num = "*"
-rustfft = { git = "https://github.com/awelkie/RustFFT" }
+rustfft = "4.0.0"
